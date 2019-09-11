@@ -18,7 +18,17 @@ from math import sin
 from array import array
 from pynverse import inversefunc
 from TimingCalibration import partial_derivative,PedestalFix
+import matplotlib
+from sympy import *
+from scipy.optimize import leastsq
+from AutomaticLoadData import LoadDataFromWeb
 
+
+font = {'weight' : 'bold',
+        'size'   : 22}
+
+matplotlib.rc('font', **font)
+matplotlib.rcParams['figure.figsize'] = [12, 8]
 
 def reject_outliers(data, m=2):
     return data[abs(data - np.mean(data)) < m * np.std(data)]
@@ -30,10 +40,40 @@ def partial_derivative(func, var=0, point=[]):
         return func(*args)
     return derivative(wraps, point[var], dx = 1e-6)
 
-   
+def SineFit3(t,data):
+
+    guess_mean = 0#np.mean(data)
+    #guess_std = 3*np.std(data)/(2**0.5)/(2**0.5)
+    guess_phase = 0
+    #guess_freq = 1
+    #guess_amp = 1
+
+    # we'll use this to plot our first estimate. This might already be good enough for you
+    #data_first_guess = guess_std*np.sin(t+guess_phase) + guess_mean
+
+    # Define the function to optimize, in this case, we want to minimize the difference
+    # between the actual data and our "guessed" parameters
+    optimize_func = lambda x: 445.0*np.sin(2.0*np.pi*0.218*t+x[0]) + x[1] - data
+    est_phase, est_mean = leastsq(optimize_func, [guess_phase, guess_mean])[0]
+    print(guess_mean,est_mean)
+
+    """
+    plt.figure(0)
+    plt.scatter(t,data)
+    t_long = np.linspace(0,300,1000)
+    plt.plot(t_long,445.0*np.sin(2.0*np.pi*0.218*t_long+est_phase)+est_mean)
+    plt.show()
+    """
+
+    return(0.218,est_phase,445.0,est_mean)
+
+
+def SineFunc3(t,k,phi,A): #time, freq, offset, amplitude
+    return 445.0*np.sin(2.0*np.pi*k*t+phi)
+
 def FileReader(MyFile,graphname,length,block_type):
     gr1 = MyFile.Get(graphname)
-    
+    #print('updated!')
     t_buff = gr1.GetX()
     v_buff = gr1.GetY()
     n = gr1.GetN()
@@ -44,8 +84,8 @@ def FileReader(MyFile,graphname,length,block_type):
     v = np.array(v_buff,copy=True)
     t = np.array(t_buff,copy=True)
     #print(t[-1])
-    cut = len(v)-length
-    
+    cut = len(v)-length #default here is length of 2 blocks
+
     #print('cut is', cut)
     if((block_type+1)%2==0):#if true starting block is even, after cutting out first block
         v=v[cut/2:(len(v)-cut/2)]
@@ -56,7 +96,7 @@ def FileReader(MyFile,graphname,length,block_type):
     #print(len(v),len(t))
     return(t,v)
 
-def sort_vals(t,v):   
+def sort_vals(t,v):
     args = t.argsort()
     t=t[args]
     v=v[args]
@@ -67,8 +107,30 @@ def sort_vals(t,v):
 def SineFunc(t,k,phi,A): #time, freq, offset, amplitude
     return A*np.sin(2.0*np.pi*k*t-phi)
 
-def SineFit(t,v,freq):
-    params, params_covariance = optimize.curve_fit(SineFunc,t,v,p0=[freq,np.pi/2.0,600.0])#,bounds=([0.216,-np.inf,200],[0.220,np.inf,np.inf]))#freq,offset,amplitude,voff
+
+def SineFit(t,v,freq,A):
+
+    test = lambda t,k,phi: SineFunc(t,k,phi,A)
+    #print(test(3,5,6))
+
+    params, params_covariance = optimize.curve_fit(lambda t,k,phi: SineFunc(t,k,phi,A),t,v,p0=[freq,np.pi/2.0])#,bounds=([0.216,-np.inf,200],[0.220,np.inf,np.inf]))#freq,offset,amplitude,voff
+
+
+    #if(params[2]<0):
+        #params[2]=np.abs(params[2])
+    #   params[1]=params[1]+np.pi
+    params[1]=params[1]%(np.pi*2)
+    while(params[1]<0):
+        params[1]=params[1]+np.pi*2.0
+    params = np.append(params,[A])
+    #print(params)
+    return(params)
+
+def SineFunc2(t,k,phi,A,o): #time, freq, offset, amplitude
+    return A*np.sin(2.0*np.pi*k*t-phi)+o
+
+def SineFit2(t,v,freq):
+    params, params_covariance = optimize.curve_fit(SineFunc2,t,v,p0=[freq,np.pi/2.0,500.0,30])#,bounds=([0.216,-np.inf,200],[0.220,np.inf,np.inf]))#freq,offset,amplitude,voff
     if(params[2]<0):
         params[2]=np.abs(params[2])
         params[1]=params[1]+np.pi
@@ -92,121 +154,523 @@ def histogram(vals,string):
         counter = counter +1
     plt.show()
 
-def SinePlotter(t,v,params,sample,col): 
+def SinePlotter(t,v,params,sample,col):
     plt.figure(10,facecolor='w')
-    plt.plot(t,v[sample,:],color=col)
+    plt.scatter(t,v[sample,:],color=col)
     #print(t)
     #print(v[sample,:])
     #print(params[0])
     t_up = np.linspace(t[0],t[-1],5000)
-    #plt.plot(t_up,SineFunc(t_up,params[sample,0],params[sample,1],params[sample,2]),color=col,lw=1.0)
+    plt.plot(t_up,SineFunc(t_up,params[sample,0],params[sample,1],params[sample,2]),color=col,lw=1.9)
     plt.xlabel('Time (ns)')
     plt.ylabel('ADC Counts')
     #plt.show()
-"""
-def load_tcal(channel):
-    t_cal = np.zeros(896)
-    minv = 0
-    for i in range(0,896/128):
-        t_cal[minv:minv+128]=np.load('cal_files/t_cal_1402_'+channel+'.npy')+minv*40/128
-        minv=minv+128
-    print('tcal is', t_cal)
-    return(t_cal)
-"""  
-def CorrectVoltage(files, channel,freq):
 
-    num_blocks = 6000
-    total_samples = 896#896
-    
-    ADC = np.zeros([num_blocks,total_samples])
-    time = np.zeros(total_samples)
-   
-    odds = np.linspace(1,total_samples-1,total_samples/2,dtype=int)
-    evens = np.linspace(0,total_samples-2,total_samples/2,dtype=int)
+def Cubic(a,p0,p1,p2,p3):
+    return(p0*a**3+p1*a**2+p2*a+p3)
 
-    MyFile = ROOT.TFile.Open('data/processed/calibration_data_fulltest_elChan'+channel+'_run'+files+'.root')
-    block_nums = np.loadtxt("data/processed/block_data_elChan"+channel+"_run"+files+'.txt')
+def plot_voltage(t,adc,p_pos,p_neg,block_num,freq,A):
 
-    pedestals =np.load('best_pedestals/ch_'+channel+'_ped.npy')
-    odd_params=np.zeros([num_blocks,3])
-    bad_params=np.zeros([num_blocks,3])
-    
+
+    start_block = int(block_num)
+    #print('starting block is',start_block)
+    length = 896
+    #print(len(adc))
+    piece = np.linspace(start_block*64,(start_block*64+length)%32768,length,dtype=int)
+    v = np.zeros(length)
+
+    for i in range(0,length):
+
+        if(i%64==0 and i>0):
+            #print('here!')
+            start_block=(start_block+1)%512
+        #print(start_block,start_block*64+i%64)
+        if(adc[i]>0):
+            v[i]=Cubic(adc[i],p_pos[start_block*64+i%64,0],p_pos[start_block*64+i%64,1],p_pos[start_block*64+i%64,2],p_pos[start_block*64+i%64,3])
+        if(adc[i]<0.0):
+            v[i]=Cubic(adc[i],p_neg[start_block*64+i%64,0],p_neg[start_block*64+i%64,1],p_neg[start_block*64+i%64,2],p_neg[start_block*64+i%64,3])
+
+
+
+    #vp =Cubic(adc[adc>0],p_pos[piece,0],p_pos[piece,1],p_pos[piece,2],p_pos[piece,3])
+    #vn =Cubic(adc[adc<0],p_neg[piece,0],p_neg[piece,1],p_neg[piece,2],p_neg[piece,3])
+    #v = np.extend(vp,vn)
+    #print(v)
+    params = SineFit(t,v,freq,A)
+
+    plt.figure(0,facecolor='w')
+    plt.scatter(t,adc,color='dodgerblue')
+    #plt.scatter(t[1::2],v[1::2],color='maroon')
+    plt.scatter(t,v,color='maroon')
+    plt.xlabel('Time (ns)')
+    plt.ylabel('Voltage (mV)')
+    #plt.plot(t,v,color='maroon')
+    t_up = np.linspace(0,280.0,2000)
+    plt.plot(t_up,SineFunc(t_up,params[0],params[1],params[2]),color='maroon')
+    #print(params[0],params[1],params[2])
+    plt.show()
+
+def plot_cubic(this_ADC,this_volt,mean_ADC,mean_volt,p_pos,p_neg,i,meanval):
+    colors =["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+
+    deg = len(p_pos[i,:])-1
+
+
+    mx = symbols('mx')
+    #x_int = solve(p_pos[i,deg-4]*mx**4+p_pos[i,deg-3]*mx**3+p_pos[i,deg-2]*mx**2+p_pos[i,deg-1]*mx+p_pos[i,deg]-p_neg[i,deg-4]*mx**4-p_neg[i,deg-3]*mx**3-p_neg[i,deg-2]*mx**2-p_neg[i,deg-1]*mx-p_neg[i,deg],mx)
+    #x_int = solve(p_pos[i,deg-3]*mx**3+p_pos[i,deg-2]*mx**2+p_pos[i,deg-1]*mx+p_pos[i,deg]-p_neg[i,deg-3]*mx**3-p_neg[i,deg-2]*mx**2-p_neg[i,deg-1]*mx-p_neg[i,deg],mx)
+
+    #if(np.abs(x_int)>10000.0):
+
+
+    print(p_pos)
+    print(p_neg)
+    #print(x_int)
+
+
+    print('meanval is ', meanval)
+    x = np.sort(this_ADC[this_ADC>=-meanval])
+    #x=np.append(x,x_int[0])
+    x = np.sort(x)
+    xn = np.sort(this_ADC[this_ADC<=-meanval])
+    #xn=np.append(xn,x_int[0])
+
+    deg = len(p_pos[i,:])
+    print('degree is',deg)
+    p_p = np.zeros(len(x))
+    p_n = np.zeros(len(xn))
+    for p in range(0,deg):
+        print(p_pos[i,deg-p-1])
+        print(deg-p)
+        p_p = p_p+p_pos[i,deg-p-1]*x**p
+        p_n = p_n+p_neg[i,deg-p-1]*xn**p
+
+    print(len(x))
+    print(len(xn))
+
+    plt.figure(1,facecolor='w')
+    plt.scatter(this_ADC,this_volt,s=2,color='black')
+    #plt.scatter(mean_ADC,mean_volt,s=10,color='red')
+    plt.plot(x,p_p,color=colors[0],lw=2.0)
+    plt.plot(xn,p_n,color=colors[1],lw=2.0)
+    plt.xlim([-600,600])
+    #plt.plot(x,np.multiply(p_pos[i,0],x**3)+np.multiply(p_pos[i,1],x**2)+np.multiply(p_pos[i,2],x)+p_pos[i,3],color=colors[0],lw=2.0)
+    #plt.plot(xn,np.multiply(p_neg[i,0],xn**3)+np.multiply(p_neg[i,1],xn**2)+np.multiply(p_neg[i,2],xn)+p_neg[i,3],color=colors[1],lw=2.0)
+    plt.xlabel('ADC Counts')
+    plt.ylabel('Voltage (mV)')
+    plt.show()
+
+
+def BlockCorrector(block_nums):
+    for i in range(0,len(block_nums)):
+        if(block_nums[i]%2==0):
+            block_nums[i]=(block_nums[i]+2)%512
+        else:
+            block_nums[i]=(block_nums[i]+1)%512
+    return(block_nums)
+
+def MeanEachBlock(t,v):
+    new_v = np.zeros(len(v))
+    for k in range(0,len(new_v)/64):
+        #print(v[k*64:k*64+64])
+        #print(np.mean(v[k*64:k*64+64]))
+        new_v[k*64:k*64+64] = v[k*64:k*64+64]-np.mean(v[k*64:k*64+64])
+    #plt.figure(1)
+    #plt.plot(t,v)
+    #plt.plot(t,new_v)
+    #plt.show()
+    return(new_v)
+
+def CorrectVoltage(station,files, channel,freq):
+
+
+
+    #mx = symbols('mx')
+    #x_int = solve(mx**2+4-3*mx**2+6,mx)
+    #print('x intercept is',x_int)
+
+
+
+    #ADC = np.zeros([num_blocks,total_samples])
+    #time = np.zeros(total_samples)
+
     #load calibrated time and volts:
-    t_cal = np.load('cal_files2/t_cal_'+files+'_'+channel+'.npy')
+    #t_cal = np.load('cal_files7/t_cal_'+files+'_'+channel+'.npy')
 
     ADC_list = [[] for i in range(32768)]#each entry = block_number*64 +sample%64
     volts_list = [[] for i in range(32768)]
     colors =["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
 
-    plt.figure(0,facecolor='w')
-    
-    for i in range(0,num_blocks):
-        time[evens],ADC[i,evens]=FileReader(MyFile,'gr_E_'+str(i),total_samples/2,block_nums[i])
-        time[odds],ADC[i,odds]=FileReader(MyFile,'gr_O_'+str(i),total_samples/2,block_nums[i])
-        if(i==0):
-            plt.plot(time,ADC[i,:],color=colors[0],label='Raw Data')
-        ADC[i,:]=PedestalFix(ADC[i,:],channel,block_nums[i],pedestals)
-        if(i==0):
-            plt.plot(time,ADC[i,:],color=colors[1],label='Pedestal Corrected')
-        odd_params[i,:] = SineFit(t_cal[odds],ADC[i,odds],freq)
-        bad_params[i,:] = SineFit(time[odds],ADC[i,odds],freq)
 
-    plt.legend()
-    plt.show()
-    #SinePlotter(time,ADC,bad_params,5,colors[0])
-    #SinePlotter(t_cal,ADC,odd_params,5,colors[1])
+
+    print('Loading RootFiles')
+    avg_ADC = []
+
+    #MyFile = ROOT.TFile.Open('data/processed/calibration_data_fulltest_elChan'+channel+'_run'+files+'.root')
+    #block_nums = np.loadtxt("data/processed/block_data_elChan"+channel+"_run"+files+'.txt')
+    A = 445.0
+    #plt.figure(0)
+    total_samples = 896
+
+    all_times, ADC,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,1,0,1)
+    times, ADC_raw,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,0,0,1)
+
+    total_events = len(all_times[:,0])
+    print('number of events:',total_events)
+
+    total_samples = len(all_times[0,:])
+    odds = np.linspace(1,total_samples-1,total_samples/2,dtype=int)
+    evens = np.linspace(0,total_samples-2,total_samples/2,dtype=int)
+
+
+    #pedestals =np.load('best_pedestals/ch_'+channel+'_ped.npy')
+    odd_params=np.zeros([total_events,3])
+    bad_params=np.zeros([total_events,3])
+    #plt.figure(0)
+    #plt.plot(all_times[0],ADC[0])
+    #plt.plot(times[0]-times[0,0],ADC_raw[0])
     #plt.show()
+    for i in range(0,total_events):
+        if(i%100==0):
+            print(i)
+        #time[evens],ADC[i,evens]=FileReader(MyFile,'gr_E_'+str(i),total_samples/2,block_nums[i])
+        #time[odds],ADC[i,odds]=FileReader(MyFile,'gr_O_'+str(i),total_samples/2,block_nums[i])
+
+        #ADC[i,:]=PedestalFix(ADC[i,:],channel,block_nums[i],pedestals)
+
+        #ADC[i,:] = MeanEachBlock(t_cal,ADC[i,:])
+
+        #ADC[i,:] = ADC[i,:]-np.mean(ADC[i,:])
+        #print(i,len(all_times[i,odds]),len(ADC[i,odds]),len(odd_params[i,:]))
+
+        #plt.figure(0)
+        #plt.plot(all_times[0],ADC[0])
+        #plt.plot(times[0]-times[0,0],ADC_raw[0])
+        plt.show()
+
+        odd_params[i,:] = SineFit(all_times[i,odds],ADC[i,odds],freq,A)
+
+        #print(odd_params[i,:])
+        times[i,odds]=times[i,odds]-times[i,0]
+        #bad_params[i,:] = SineFit(times[i,odds],ADC[i,odds],freq,A)
+
+
+    t_cal = all_times[0]
+    #block_nums = BlockCorrector(block_nums)#FROM THIS POINT ON, Block_nums has CORRECT first block!
+    #plot_voltage(t_cal,ADC[0,:],p_pos,p_neg,block_nums[0])
+
+
+    #plt.legend()
+    #plt.show()
+    print(block_nums)
+    print(np.shape(times))
+    print(np.shape(ADC))
+
+
+
+
+    #SinePlotter(times[5],ADC_raw[:],bad_params,5,colors[0])
+    #plt.show()
+    #SinePlotter(all_times[5],ADC[:],odd_params,5,colors[1])
+
+    #plt.show()
+    """
     spacing_e = t_cal[evens[1:]]-t_cal[evens[:-1]]
     spacing_o = t_cal[odds[1:]]-t_cal[odds[:-1]]
     binwidth = 0.02
+
+
     plt.figure(0,facecolor='w')
-    plt.hist(spacing_o,bins=np.arange(min(spacing_o), max(spacing_o) + binwidth, binwidth),edgecolor='none',color=colors[0],label='Odd Spacing')
-    plt.hist(spacing_e,bins=np.arange(min(spacing_e), max(spacing_e) + binwidth, binwidth),edgecolor='none',color=colors[1],label='Even Spacing',alpha=0.7)
-    plt.axvline(x=0.625,color='black')
+    plt.hist(spacing_o,bins=np.arange(min(spacing_e), max(spacing_o) + binwidth, binwidth),edgecolor='none',color=colors[0],label='Odd Spacing')
+    plt.hist(spacing_e,bins=np.arange(min(spacing_e), max(spacing_o) + binwidth, binwidth),edgecolor='none',color=colors[1],label='Even Spacing',alpha=0.7)
+    plt.axvline(x=0.625,color='black',lw=3.0)
+    #plt.xlim([0.25,1.0])
+    plt.ylim([0,150])
+    plt.xlabel('Spacing Between Samples (ns)')
+    plt.ylabel('Counts')
     plt.legend()
     plt.show()
 
-    v_amp = 445.0
-    
-        
-    for i in range(0,num_blocks):
-        my_block = int((block_nums[i]+1)%512)
-                       
+    SinePlotter(time,ADC,bad_params,5,colors[0])
+    SinePlotter(t_cal,ADC,odd_params,5,colors[1])
+    plt.show()
+    """
+
+
+    plot_block = []
+    plot_adc = []
+
+
+
+    for i in range(62,total_events):
+        my_block=int(block_nums[i])
+        #print(my_block)
         for j in range(0,total_samples):#896
+            if(j%64==0 and j>0):
+                #print(j,my_block)
+                my_block=(my_block+1)%512
+
+            volt_val = SineFunc(t_cal[j],odd_params[i,0],odd_params[i,1],A)
+            #print(volt_val,ADC[i,j])
+            #print(volt_val)
+            #print(my_block*64+j%64)
             #slope = partial_derivative(SineFunc,var=0,point=[t_cal[j],odd_params[i,0],odd_params[i,1],v_amp])
-            #if(np.abs(slope)<0.45*v_amp):
-            if(ADC[i,j]*SineFunc(t_cal[j],odd_params[i,0],odd_params[i,1],v_amp)>0.0):
-                ADC_list[my_block*64+j%64].append(ADC[i,j])
-                volts_list[my_block*64+j%64].append(SineFunc(t_cal[j],odd_params[i,0],odd_params[i,1],v_amp))
-            #print('slope is', slope)
+            #slope = v_amp*2*np.pi*odd_params[i,0]*np.cos(2*np.pi*odd_params[i,0]*t_cal[j]-odd_params[i,1])
+            if( (ADC[i,j]*volt_val>0.0 or (np.abs(ADC[i,j])<100 and np.abs(volt_val)<100)) ):
+
+                ADC_list[(my_block*64+j%64)].append(ADC[i,j])
+                volts_list[(my_block*64+j%64)].append(volt_val)
+                plot_block.append(my_block*64+j%64)
+                plot_adc.append(ADC[i,j])
+
+    #np.save('ADClist.npy',ADC_list)
+    #np.save('voltslist.npy',volts_list)
+
+
+    #ADC_list= np.load('ADClist.npy')
+    #volts_list=np.load('voltslist.npy')
 
     tot = 32768
-    p_pos=np.zeros([32768,4])
-    p_neg=np.zeros([32768,4])
+    counts = 0
+    degree = 3
+    p_pos=np.zeros([32768,degree+1])
+    p_neg=np.zeros([32768,degree+1])
     plot_blocks = []
-    for i in range(0,32768):
+    chi2_p = np.zeros([32768])
+    chi2_n = np.zeros([32768])
+
+    zero_vals = np.zeros([32768])
+
+    extra_peds = []
+
+    C1 = [0,1,8,9,16,17,24,25]
+    C2 = [3,2,11,10,19,18,27,26]
+
+    if(float(channel) in C1):
+        max_range = 32768
+    else:
+        max_range = 16384
+
+
+    for i in range(0,max_range):
+        if(float(channel) in C1):
+            i = i
+        else:
+            i=i*2+1
+
+        if(i%1000==1):
+            print(i)
+
         this_ADC = np.asarray(ADC_list[i])
+        #print('average ADC is', np.mean(this_ADC))
+        ADC_mean = np.mean(this_ADC)
         this_volt = np.asarray(volts_list[i])
 
-        p_pos[i,:] = np.polyfit(this_ADC[this_ADC>0],this_volt[this_volt>0],3)
-        p_neg[i,:] = np.polyfit(this_ADC[this_ADC<0],this_volt[this_volt<0],3)
+
+        lin_ADC = []
+        lin_volt = []
+        for j in range(0,len(this_ADC)):
+            if (np.abs(this_ADC[j]<100) and np.abs(this_volt[j]<100)):
+                lin_ADC.append(this_ADC[j])
+                lin_volt.append(this_volt[j])
+        myslope,intercept,r,p,stderr = stats.linregress(np.asarray(lin_ADC),np.asarray(lin_volt))
+        zero_vals[i] = intercept/myslope
+
+        """
+        #zero_val = intercept/myslope
+        #this_ADC=this_ADC+zero_val
+        #print('x int is', zero_val)
+        #extra_peds.append(zero_val)
+        this_ADC=np.append(this_ADC,np.zeros(1000))
+        #this_ADC=np.append(this_ADC,np.zeros(100)+np.max(this_ADC))
+        this_volt=np.append(this_volt,np.zeros(1000)+intercept)
+        #this_volt=np.append(this_volt,np.zeros(100)+np.max(this_volt))
+        p_pos[i,:] = np.polyfit(this_ADC[this_ADC>=0],this_volt[this_ADC>=0],degree)
+        p_neg[i,:] = np.polyfit(this_ADC[this_ADC<=0],this_volt[this_ADC<=0],degree)
+        """
+
+        if(channel in C2):
+            p_pos[i-1,:]=p_pos[i,:]
+            p_neg[i-1,:]=p_neg[i,:]
+
+        meas_volt = []
+        mean_ADC = []
+        var_volt = []
+        tmin = np.min(this_ADC)
+        tmax = tmin+5.0
+
+        sorted = np.argsort(this_ADC)
+        sort_ADC = this_ADC[sorted]
+        sort_volt = this_volt[sorted]
+
+        for k in range(0,len(this_ADC)/5):
+            meas_volt.append(np.mean(sort_volt[k*5:k*5+5]))
+            mean_ADC.append(np.mean(sort_ADC[k*5:k*5+5]))
+            var_volt.append(np.var(sort_volt[k*5:k*5+5]))
+
+
+        """
+        while(tmax<np.max(this_ADC)):
+
+            meas_volt.append(np.mean(this_volt[(this_ADC>tmin) & (this_ADC<tmax)]))
+            mean_ADC.append(np.mean(this_ADC[(this_ADC>tmin) & (this_ADC<tmax)]))
+            var_volt.append(np.var(this_volt[(this_ADC>tmin) & (this_ADC<tmax)]))
+
+            tmin=tmin+5
+            tmax=tmax+5
+        """
+
+        mean_ADC = np.asarray(mean_ADC)
+        meas_volt = np.asarray(meas_volt)
+        var_volt = np.asarray(var_volt)
+
+        #print('')
+        #print(var_volt)
+        #print(mean_ADC)
+        #print(meas_volt)
+
+        mean_ADC=np.append(mean_ADC,np.zeros(100))
+        #this_ADC=np.append(this_ADC,np.zeros(100)+np.max(this_ADC))
+        meas_volt=np.append(meas_volt,np.zeros(100)+intercept)
+
+        #print('mean volts is', np.mean(this_volt))
+
+        p_pos[i,:] = np.polyfit(mean_ADC[mean_ADC>=0],meas_volt[mean_ADC>=0],degree)
+        p_neg[i,:] = np.polyfit(mean_ADC[mean_ADC<=0],meas_volt[mean_ADC<=0],degree)
+
+        mean_ADC = mean_ADC[:-100]
+        meas_volt = meas_volt[:-100]
+
+        mean_ADC = mean_ADC[~np.isnan(var_volt)]
+        meas_volt = meas_volt[~np.isnan(var_volt)]
+        var_volt= var_volt[~np.isnan(var_volt)]
+
+        mean_ADC = mean_ADC[np.nonzero(var_volt)]
+        meas_volt= meas_volt[np.nonzero(var_volt)]
+        var_volt = var_volt[np.nonzero(var_volt)]
+
+        pred_v = Cubic(mean_ADC[mean_ADC<=0],p_neg[i,0],p_neg[i,1],p_neg[i,2],p_neg[i,3])
+        chi2_n[i]=np.sum(np.divide((meas_volt[mean_ADC<=0]-pred_v)**2,var_volt[mean_ADC<=0]))/(len(var_volt[mean_ADC<=0]))
+        pred_v = Cubic(mean_ADC[mean_ADC>=0],p_pos[i,0],p_pos[i,1],p_pos[i,2],p_pos[i,3])
+        chi2_p[i]=np.sum(np.divide((meas_volt[mean_ADC>=0]-pred_v)**2,var_volt[mean_ADC>=0]))/(len(var_volt[mean_ADC>=0]))
+
+        #plot_cubic(mean_ADC,meas_volt,p_pos,p_neg,i,0.0)
+
+        """
+        this_ADC = this_ADC[:-100]
+        this_volt = this_volt[:-100]
+        meas_volt = []
+        mean_ADC = []
+        var_volt = []
+        tmin = np.min(this_volt)
+        tmax = tmin+30.0
+        while(tmax<np.max(this_volt)):
+            #good_indices = np.where((this_ADC>tmin) & (this_ADC<tmax))
+            if(len(this_volt[(this_volt>tmin) & (this_volt<tmax)])>1):
+                meas_volt.append(np.mean(this_volt[(this_volt>tmin) & (this_volt<tmax)]))
+                mean_ADC.append(np.mean(this_ADC[(this_volt>tmin) & (this_volt<tmax)]))
+                var_volt.append(np.var(this_volt[(this_volt>tmin) & (this_volt<tmax)]))
+                if(var_volt[-1]<1):
+                    print('variance is ',var_volt[-1])
+                    var_volt[-1]=30.0
+            tmin=tmin+30
+            tmax=tmax+30
+
+        meas_volt = np.asarray(meas_volt)
+        var_volt = np.asarray(var_volt)
+        mean_ADC = np.asarray(mean_ADC)
+        v_expn = Cubic(this_ADC[this_ADC<=0],p_neg[i,0],p_neg[i,1],p_neg[i,2],p_neg[i,3])
+        v_expp = Cubic(this_ADC[this_ADC>=0],p_pos[i,0],p_pos[i,1],p_pos[i,2],p_pos[i,3])
+        mean_voltp = Cubic(mean_ADC[meas_volt>=0],p_pos[i,0],p_pos[i,1],p_pos[i,2],p_pos[i,3])
+        mean_voltn = Cubic(mean_ADC[meas_volt<=0],p_neg[i,0],p_neg[i,1],p_neg[i,2],p_neg[i,3])
+
+        #print('volts : ',meas_volt,mean_voltp,mean_voltn)
+        #p_poly = np.polynomial.polynomial.Polynomial.fit(this_ADC,this_volt)
+        #coef = p_poly.convert().coef
+        #p_pos[i,:]=[coef[-1],coef[-2],coef[-3],coef[-4]]
+        #p_neg[i,:]=p_pos[i,:]
+        #p_neg[i,:] = np.polynomial.polynomial.Polynomial.fit(this_ADC,this_volt,3)
+        #if zero_val<-100.0:
+        #    plot_cubic(this_ADC,this_volt,p_pos,p_neg,i,0.0)
+
+
+        #print(len(meas_volt[meas_volt>=0]))
+        #print(len(mean_voltp))
+        chi2_p[i]=np.sum(((meas_volt[meas_volt>=0]-mean_voltp)**2)/var_volt[meas_volt>=0])/float(len(meas_volt[meas_volt>=0]))
+        chi2_n[i]=np.sum(((meas_volt[meas_volt<=0]-mean_voltn)**2)/var_volt[meas_volt<=0])/float(len(meas_volt[meas_volt<=0]))
+        """
+        #hi2_n[i]=np.sum(((this_ADC[this_ADC<=0]-v_expn)**2)/v_expn)/len(this_ADC)
+        """
+        print(chi2_p[i],chi2_n[i])
+        if(chi2_p[i]>2.0):
+            #plot_cubic(this_ADC,this_volt,p_pos,p_neg,i)
+            p_pos[i,:]=p_pos[i-1,:]
+        if(chi2_n[i]>2.0):
+            #plot_cubic(this_ADC,this_volt,p_pos,p_neg,i)
+            p_neg[i,:]=p_neg[i-1,:]
+        """
+        #print(var_volt)
+        #print(mean_ADC)
+        #print(meas_volt)
+        #print('chi2 is', chi2_p[i])
+        #plot_cubic(this_ADC,this_volt,p_pos,p_neg,i,0.0)
+
+
+        #if(i%2==0):
+        #plot_cubic(this_ADC,this_volt,p_pos,p_neg,i,0.0)
+        #plot_cubic(mean_ADC,meas_volt,p_pos,p_neg,i,0.0)
+        """
+        if(i==570):
+            print(i,chi2_p[i])
+            plot_cubic(this_ADC,this_volt,mean_ADC,meas_volt,p_pos,p_neg,i,0.0)
+        """
+        #if(i>500 and chi2_p[i]>5.0 and chi2_p[i-2]<1.0 and i%2==1):
+        if(i==909):
+            print(i,chi2_p[i])
+            plot_cubic(this_ADC,this_volt,mean_ADC,meas_volt,p_pos,p_neg,i,0.0)
+        """
+        if((i%880==0 and i>0)):
+            print(i)
+            print('chi2 is ', chi2_p[i])
+            plot_chip = chi2_p[:i]
+            plot_chin = chi2_n[:i]
+            plt.figure(0)
+            plt.hist(plot_chip[plot_chip<100],bins=100,alpha=0.5)
+            plt.hist(plot_chin[plot_chin<100],bins=100,alpha=0.5)
+            plt.show()
+
+            plot_cubic(this_ADC,this_volt,mean_ADC,meas_volt,p_pos,p_neg,i,0.0)
+
+            my_ind = np.where(block_nums==counts)
+            print('this index is', my_ind)
+            if(my_ind[0][0]!=None):
+                plot_voltage(t_cal,ADC[my_ind[0][0],:],p_pos,p_neg,block_nums[my_ind[0][0]],freq,A)
+            counts = counts +14
+
+
         plot_blocks.append((i/64))
+        """
         #values = np.linspace(0,32768,32768)
-        """
-        x = np.sort(this_ADC[this_ADC>0])
-        x=np.append(x,0)
-        x = np.sort(x)
-        xn = np.sort(this_ADC[this_ADC<0])
-        xn=np.append(xn,0)
-        plt.figure(1,facecolor='w')
-        plt.scatter(this_ADC,this_volt,s=2,color='black')
-        plt.plot(x,np.multiply(p_pos[i,0],x**3)+np.multiply(p_pos[i,1],x**2)+np.multiply(p_pos[i,2],x)+p_pos[i,3],color=colors[0],lw=2.0)
-        plt.plot(xn,np.multiply(p_neg[i,0],xn**3)+np.multiply(p_neg[i,1],xn**2)+np.multiply(p_neg[i,2],xn)+p_neg[i,3],color=colors[1],lw=2.0)
-        plt.xlabel('ADC Counts')
-        plt.ylabel('Voltage (mV)')
-        plt.show()
-        """
-        
+
+
+    binwidth = 0.1
+    #plt.figure(1,facecolor='w')
+    #plt.hist(chi2_p[1::2],bins=np.arange(min(chi2_p[1::2]), max(chi2_p[1::2]) + binwidth, binwidth),alpha=0.5,label='Positive Fit')
+    #plt.hist(chi2_n[1::2],bins=np.arange(min(chi2_n[1::2]), max(chi2_n[1::2]) + binwidth, binwidth),alpha=0.5,label='Negative Fit')
+    #plt.xlabel('Chi^2 Values')
+    #plt.xlim([0,5])
+    #plt.legend()
+    #plt.show()
+
+    np.save('/home/kahughes/ARA/ARA'+str(station)+'_cal_files/p_pos_'+channel+'.npy',p_pos)
+    np.save('/home/kahughes/ARA/ARA'+str(station)+'_cal_files/p_neg_'+channel+'.npy',p_neg)
+    np.save('/home/kahughes/ARA/ARA'+str(station)+'_cal_files/chi2_pos_'+channel+'.npy',chi2_p)
+    np.save('/home/kahughes/ARA/ARA'+str(station)+'_cal_files/chi2_neg_'+channel+'.npy',chi2_n)
+    np.save('/home/kahughes/ARA/ARA'+str(station)+'_cal_files/zerovals_'+channel+'.npy',zero_vals)
+    #p_pos = np.load('p_pos_'+channel+'.npy')
+    #p_neg = np.load('p_neg_'+channel+'.npy')
+
+    """
     plt.figure(0,facecolor='w')
     plt.subplot(2,2,1)
     plt.hist2d(plot_blocks,p_pos[:,0],bins=(512,50),cmap=plt.cm.jet)
@@ -220,34 +684,58 @@ def CorrectVoltage(files, channel,freq):
     plt.subplot(2,2,4)
     plt.hist2d(plot_blocks,p_pos[:,3],bins=(512,50),cmap=plt.cm.jet)
     plt.title('Offset')
+    """
 
     #plt.subplot(2,1,1)
     #plt.hist(ADC_list[15][:],bins = 50)
     #plt.subplot(2,1,2)
     #plt.hist(volts_list[15][:],bins = 50)
-    
-    
-    plt.show()
-    
+
+
+    #plt.show()
+
 
 def main():
-    
+
     channel = str(sys.argv[1])#'0'
+    station = str(sys.argv[2])
     freqs = [0.218,0.353,0.521,0.702]
 
 
     N1 = [0,3,8,11,16,19,24,27]
     N2 = [1,2,9,10,17,18,25,26]
-    
+
     if(int(channel) in N1):
         rootfiles = ['1402', '1403','1404','1405']
     if(int(channel) in N2):
         rootfiles = ['1411','1412','1413','1414']
 
-    for a in range(0,4):
-        CorrectVoltage(rootfiles[a],channel,freqs[a])
-    
 
-   
+    N1 = [0,3,8,11,16,19,24,27]
+    N2 = [1,2,9,10,17,18,25,26]
+    N_special = [9,16,24,25]
+    if(station=='5'):
+        if(int(channel) in N1):
+            rootfile='1402'
+            rootfiles = ['1402', '1403','1404','1405']
+        if(int(channel) in N2):
+            rootfile='1411'
+            rootfiles = ['1411','1412','1413','1414']
+    if(station=='4'):
+        if(int(channel) in N1 and int(channel) not in N_special):
+            rootfile='2829'
+            rootfiles = ['2829', '2830','2831','2832']
+        if(int(channel) in N2 and int(channel) not in N_special):
+            rootfile='2840'
+            rootfiles = ['2840','2841','2842','2843']
+        if(int(channel)in N_special):
+            rootfiles = ['2855','2856']
+
+
+    for a in range(0,1):
+        CorrectVoltage(station,rootfiles[a],channel,freqs[a])
+
+
+
 if __name__=="__main__":
    main()
