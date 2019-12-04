@@ -19,7 +19,7 @@ from array import array
 from pynverse import inversefunc
 from TimingCalibration import partial_derivative,PedestalFix
 import matplotlib
-from sympy import *
+#from sympy import *
 from scipy.optimize import leastsq
 from AutomaticLoadData import LoadDataFromWeb
 
@@ -174,21 +174,21 @@ def plot_voltage(t,adc,p_pos,p_neg,block_num,freq,A):
 
     start_block = int(block_num)
     #print('starting block is',start_block)
-    length = 896
+    length = len(adc)
     #print(len(adc))
     piece = np.linspace(start_block*64,(start_block*64+length)%32768,length,dtype=int)
     v = np.zeros(length)
 
-    for i in range(0,length):
+    for k in range(0,length):
 
-        if(i%64==0 and i>0):
+        if(k%64==0 and k>0):
             #print('here!')
             start_block=(start_block+1)%512
         #print(start_block,start_block*64+i%64)
-        if(adc[i]>0):
-            v[i]=Cubic(adc[i],p_pos[start_block*64+i%64,0],p_pos[start_block*64+i%64,1],p_pos[start_block*64+i%64,2],p_pos[start_block*64+i%64,3])
-        if(adc[i]<0.0):
-            v[i]=Cubic(adc[i],p_neg[start_block*64+i%64,0],p_neg[start_block*64+i%64,1],p_neg[start_block*64+i%64,2],p_neg[start_block*64+i%64,3])
+        if(adc[k]>0):
+            v[k]=Cubic(adc[k],p_pos[start_block*64+k%64,0],p_pos[start_block*64+k%64,1],p_pos[start_block*64+k%64,2],p_pos[start_block*64+k%64,3])
+        if(adc[k]<0.0):
+            v[k]=Cubic(adc[k],p_neg[start_block*64+k%64,0],p_neg[start_block*64+k%64,1],p_neg[start_block*64+k%64,2],p_neg[start_block*64+k%64,3])
 
 
 
@@ -199,9 +199,9 @@ def plot_voltage(t,adc,p_pos,p_neg,block_num,freq,A):
     params = SineFit(t,v,freq,A)
 
     plt.figure(0,facecolor='w')
-    plt.scatter(t,adc,color='dodgerblue')
+    plt.scatter(t[1::2],adc[1::2],color='dodgerblue')
     #plt.scatter(t[1::2],v[1::2],color='maroon')
-    plt.scatter(t,v,color='maroon')
+    plt.scatter(t[1::2],v[1::2],color='maroon')
     plt.xlabel('Time (ns)')
     plt.ylabel('Voltage (mV)')
     #plt.plot(t,v,color='maroon')
@@ -326,10 +326,10 @@ def CorrectVoltage(station,files, channel,freq):
     #pedestals =np.load('best_pedestals/ch_'+channel+'_ped.npy')
     odd_params=np.zeros([total_events,3])
     bad_params=np.zeros([total_events,3])
-    #plt.figure(0)
-    #plt.plot(all_times[0],ADC[0])
-    #plt.plot(times[0]-times[0,0],ADC_raw[0])
-    #plt.show()
+    plt.figure(0)
+    plt.plot(all_times[0,1::2],ADC[0,1::2])
+    plt.plot(times[0,1::2]-times[0,0],ADC_raw[0,1::2])
+    plt.show()
     for i in range(0,total_events):
         if(i%100==0):
             print(i)
@@ -369,9 +369,9 @@ def CorrectVoltage(station,files, channel,freq):
 
 
 
-    #SinePlotter(times[5],ADC_raw[:],bad_params,5,colors[0])
+    #SinePlotter(times[5,1::2],ADC_raw[:,1::2],bad_params,5,colors[0])
     #plt.show()
-    #SinePlotter(all_times[5],ADC[:],odd_params,5,colors[1])
+    #SinePlotter(all_times[5,1::2],ADC[:,1::2],odd_params,5,colors[1])
 
     #plt.show()
     """
@@ -503,11 +503,18 @@ def CorrectVoltage(station,files, channel,freq):
         sort_ADC = this_ADC[sorted]
         sort_volt = this_volt[sorted]
 
-        for k in range(0,len(this_ADC)/5):
-            meas_volt.append(np.mean(sort_volt[k*5:k*5+5]))
-            mean_ADC.append(np.mean(sort_ADC[k*5:k*5+5]))
-            var_volt.append(np.var(sort_volt[k*5:k*5+5]))
-
+        #print('')
+        #print(this_ADC)
+        my_spacing = 5
+        for k in range(0,len(this_ADC)/my_spacing):
+            meas_volt.append(np.mean(sort_volt[k*my_spacing:k*my_spacing+my_spacing]))
+            mean_ADC.append(np.mean(sort_ADC[k*my_spacing:k*my_spacing+my_spacing]))
+            var_volt.append(np.var(sort_volt[k*my_spacing:k*my_spacing+my_spacing]))
+            #var_volt.append(1)
+        #print(meas_volt,mean_ADC,var_volt)
+        #meas_volt = sort_volt
+        #mean_ADC = sort_ADC
+        #var_volt = np.linspace(1,1,len(mean_ADC))
 
         """
         while(tmax<np.max(this_ADC)):
@@ -534,9 +541,16 @@ def CorrectVoltage(station,files, channel,freq):
         meas_volt=np.append(meas_volt,np.zeros(100)+intercept)
 
         #print('mean volts is', np.mean(this_volt))
-
-        p_pos[i,:] = np.polyfit(mean_ADC[mean_ADC>=0],meas_volt[mean_ADC>=0],degree)
-        p_neg[i,:] = np.polyfit(mean_ADC[mean_ADC<=0],meas_volt[mean_ADC<=0],degree)
+        #plt.figure()
+        #plt.scatter(mean_ADC,meas_volt)
+        #plt.show()
+        #print(mean_ADC[mean_ADC<=0],meas_volt[mean_ADC<=0])
+        try:
+            p_pos[i,:] = np.polyfit(mean_ADC[mean_ADC>=0],meas_volt[mean_ADC>=0],degree)
+            p_neg[i,:] = np.polyfit(mean_ADC[mean_ADC<=0],meas_volt[mean_ADC<=0],degree)
+        except ValueError:
+            p_pos[i,:] = p_pos[i-2,:]
+            p_neg[i,:] = p_neg[i-2,:]
 
         mean_ADC = mean_ADC[:-100]
         meas_volt = meas_volt[:-100]
@@ -553,7 +567,7 @@ def CorrectVoltage(station,files, channel,freq):
         chi2_n[i]=np.sum(np.divide((meas_volt[mean_ADC<=0]-pred_v)**2,var_volt[mean_ADC<=0]))/(len(var_volt[mean_ADC<=0]))
         pred_v = Cubic(mean_ADC[mean_ADC>=0],p_pos[i,0],p_pos[i,1],p_pos[i,2],p_pos[i,3])
         chi2_p[i]=np.sum(np.divide((meas_volt[mean_ADC>=0]-pred_v)**2,var_volt[mean_ADC>=0]))/(len(var_volt[mean_ADC>=0]))
-
+        #print(chi2_p[i])
         #plot_cubic(mean_ADC,meas_volt,p_pos,p_neg,i,0.0)
 
         """
@@ -625,11 +639,11 @@ def CorrectVoltage(station,files, channel,freq):
             plot_cubic(this_ADC,this_volt,mean_ADC,meas_volt,p_pos,p_neg,i,0.0)
         """
         #if(i>500 and chi2_p[i]>5.0 and chi2_p[i-2]<1.0 and i%2==1):
-        if(i==909):
-            print(i,chi2_p[i])
-            plot_cubic(this_ADC,this_volt,mean_ADC,meas_volt,p_pos,p_neg,i,0.0)
+        #if(i==909):
+        #    print(i,chi2_p[i])
+        #    plot_cubic(this_ADC,this_volt,mean_ADC,meas_volt,p_pos,p_neg,i,0.0)
         """
-        if((i%880==0 and i>0)):
+        if((i%898==0 and i>0)):
             print(i)
             print('chi2 is ', chi2_p[i])
             plot_chip = chi2_p[:i]
@@ -647,9 +661,9 @@ def CorrectVoltage(station,files, channel,freq):
                 plot_voltage(t_cal,ADC[my_ind[0][0],:],p_pos,p_neg,block_nums[my_ind[0][0]],freq,A)
             counts = counts +14
 
-
-        plot_blocks.append((i/64))
         """
+        plot_blocks.append((i/64))
+
         #values = np.linspace(0,32768,32768)
 
 
