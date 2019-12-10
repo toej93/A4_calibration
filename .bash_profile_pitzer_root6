@@ -1,0 +1,52 @@
+if [ -r ~/.bashrc ]; then
+   source ~/.bashrc
+fi
+
+
+export LD_LIBRARY_PATH=$HOME/lib:$LD_LIBRARY_PATH
+export PATH=$HOME/lib:$PATH
+export PATH=$HOME/include:$PATH
+
+
+#ARA Variables with AraRoot and AraSim
+export ARA_BASE=/users/PAS0654/osu8354/ARA
+export ARA_ROOT_DIR=$ARA_BASE/AraRoot
+export ARA_UTIL_INSTALL_DIR=$ARA_BASE/AraRootBuild
+export FFTW_UTIL=/users/PCON0003/cond0068/ARA/fftw_tools
+
+export CC="/apps/gnu/7.3.0/bin/gcc"
+export CXX="/apps/gnu/7.3.0/bin/g++"
+module load cmake
+#module load python
+module load gnu/7.3.0
+module load python/3.6-conda5.2
+
+export T576_INSTALL_DIR=/users/PCON0003/cond0068/ARA
+export T576_DATA_DIR=/users/PCON0003/osu10643/t576/run2/
+export CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:/users/PCON0003/cond0068/ARA/include/t576
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$T576_INSTALL_DIR/lib
+export LIBRARY_PATH=$LIBRARY_PATH:$T576_INSTALL_DIR/lib
+
+#cd $ARA_BASE/RootBuild2
+cd /users/PAS0654/osu8354/root6_14_build #ROOT 6.14
+. bin/thisroot.sh
+
+cd -
+
+export PATH=$PATH:$ARA_BASE:$ARA_ROOT_DIR:$ARA_UTIL_INSTALL_DIR
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ARA_BASE/libRootFftwWrapper
+export BOOST_ROOT=$ARA_BASE/boost_1_61_0
+export ARA_ARASIM=$ARA_BASE/AraSim/releases/1.0
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$BOOST_ROOT/stage/lib
+export PATH=$PATH:$BOOST_ROOT
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ARA_BASE/snowShovel/include
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ARA_BASE/AraRootBuild
+export FFTWSYS=$ARA_BASE/libRootFftwWrapper
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ARA_BASE/AraRootBuild/lib
+#export PYTHONPATH=/users/PCON0003/cond0068/radiotools
+export PYTHONPATH=/users/PCON0003/cond0068/NuRadioReco
+
+export PATH=/users/PCON0003/cond0068/ARA/PCRE/bin:$PATH
+#export DISPLAY=localhost:0.0 #RUN root on batch
+
+export PYTHONPATH=$PYTHONPATH:$ROOTSYS/lib

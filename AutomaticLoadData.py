@@ -28,7 +28,10 @@ import itertools
 import warnings
 import requests
 from bs4 import BeautifulSoup
-import urllib2
+#import urllib2
+from urllib.request import urlopen
+from termcolor import colored
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def SineFunc(t,k,phi,A): #time, freq, offset, amplitude
@@ -40,7 +43,7 @@ def SineFit(t,v,freq,A):
     test = lambda t,k,phi: SineFunc(t,k,phi,A)
     #print(test(3,5,6))
 
-    params, params_covariance = optimize.curve_fit(lambda t,k,phi: SineFunc(t,k,phi,A),t,v,p0=[freq,np.pi/2.0])#,bounds=([0.216,-np.inf,200],[0.220,np.inf,np.inf]))#freq,offset,amplitude,voff
+    params, params_covariance = optimize.curve_fit(lambda t,k,phi: SineFunc(t,k,phi,A),t,v,p0=[freq,np.pi/2.0],maxfev=1000000)#,bounds=([0.216,-np.inf,200],[0.220,np.inf,np.inf]))#freq,offset,amplitude,voff
 
 
     #if(params[2]<0):
@@ -72,7 +75,7 @@ def MeanEachBlock(v,channel):
         size = 32
     else:
         size = 64
-    for k in range(0,len(new_v)/size):
+    for k in range(0,int(len(new_v)/size)):
         temp_v = v[k*size:k*size+size]
         temp_v[1::2]=temp_v[1::2]-np.mean(temp_v[1::2])
         temp_v[0::2]=temp_v[0::2]-np.mean(temp_v[0::2])
@@ -180,7 +183,7 @@ def PedestalFix(v,channel,block_num,ped_values): # this is for using an ARA gene
     #print('ped values are', ped_values)
     my_ped_values = np.zeros(len(v))
     counter = 0
-    for i in range(0,len(v)/64):
+    for i in range(0,int(len(v)/64)):
         v0 =int(int(channel)/8)
         v1 =int(block_num)
         v2 =int(int(channel)%8)
@@ -322,9 +325,9 @@ def RemoveBackwardsSamples(tcal,v):
 
 def LoadDataFromWeb(station,run,date,year,channel,length,kCalib,kPed,kTime,kVolt,kForCalib):
     wantBlocks = 1
-    t_file = "SavedCalibData/time_"+str(run)+"_"+str(channel)+str(kCalib)+str(kPed)+str(kTime)+str(kVolt)+".npy"
-    v_file = "SavedCalibData/volts_"+str(run)+"_"+str(channel)+str(kCalib)+str(kPed)+str(kTime)+str(kVolt)+".npy"
-    b_file = "SavedCalibData/blocks_"+str(run)+"_"+str(channel)+str(kCalib)+str(kPed)+str(kTime)+str(kVolt)+".npy"
+    t_file = "SavedCalibData/time_"+str(run)+"_"+str(channel)+str(kCalib)+str(kPed)+str(kTime)+str(kVolt)+".npy" #this file has shape (numEvents, numBlocks)
+    v_file = "SavedCalibData/volts_"+str(run)+"_"+str(channel)+str(kCalib)+str(kPed)+str(kTime)+str(kVolt)+".npy" #this file has shape (numEvents, numBlocks)
+    b_file = "SavedCalibData/blocks_"+str(run)+"_"+str(channel)+str(kCalib)+str(kPed)+str(kTime)+str(kVolt)+".npy" #this file has shape (numEvents, numBlocks)
     if(os.path.isfile(t_file) and os.path.isfile(v_file)):
         t=np.load(t_file)
         v=np.load(v_file)
@@ -340,48 +343,58 @@ def LoadDataFromWeb(station,run,date,year,channel,length,kCalib,kPed,kTime,kVolt
         else:
             if(station=='5'):
                 print('using ARA5 calibration ped file')
-                ped_values = DownloadPedFile(year,run,'/home/kahughes/ARA/pedestal_vals/pedestalValues.run001431.dat')
+                ped_values = DownloadPedFile(year,run,'./pedFiles/pedestalValues.run001431.dat')
             else:
                 print('using ARA4 calibration ped file')
-                ped_values = DownloadPedFile(year,run,'/home/kahughes/ARA/data/raw/run_002818/pedestalValues.run002818.dat')
+                ped_values = DownloadPedFile(year,run,'./pedFiles/pedestalValues.run002818.dat')
+        print("Data loaded. Loading libAraEvent.so now ")
+        ROOT.gSystem.Load("/users/PAS0654/osu8354/ARA/AraRootBuild/lib/libAraEvent.so")
 
-        ROOT.gSystem.Load("$ARA_UTIL_INSTALL_DIR/lib/libAraEvent.so")
-
+        # try:
+        #     test = ROOT.TFile.Open("/home/kahughes/ARA/data/root/run"+str(run)+"/event"+str(run)+".root")
+        #
+        #     calibrator = ROOT.AraEventCalibrator.Instance()
+        #     eventTree = test.Get("eventTree")
+        # except ReferenceError:
         try:
-            test = ROOT.TFile.Open("/home/kahughes/ARA/data/root/run"+str(run)+"/event"+str(run)+".root")
-
-            calibrator = ROOT.AraEventCalibrator.Instance()
-            eventTree = test.Get("eventTree")
+            print("/users/PCON0003/cond0068/ARA/ARA_Calibration/Data/event00"+str(run)+".root")
+            test = ROOT.TFile.Open("/users/PCON0003/cond0068/ARA/ARA_Calibration/Data/event00"+str(run)+".root")
         except ReferenceError:
-            try:
-                test = ROOT.TFile.Open("/home/kahughes/ARA/data/root/run00"+str(run)+"/event00"+str(run)+".root")
-                calibrator = ROOT.AraEventCalibrator.Instance()
-                eventTree = test.Get("eventTree")
-            except ReferenceError:
-                test = ROOT.TWebFile.Open("http://icecube:skua@convey.icecube.wisc.edu/data/exp/ARA/"+year+"/filtered/L0/ARA05/"+date+"/run"+run+"/event"+run+".root")
-                print('made it')
-                calibrator = ROOT.AraEventCalibrator.Instance()
-                eventTree = test.Get("eventTree")
+            print("http://icecube:skua@convey.icecube.wisc.edu/data/exp/ARA/"+year+"/filtered/L0/ARA04/"+date+"/run"+run+"/event"+run+".root")
+            test = ROOT.TWebFile.Open("http://icecube:skua@convey.icecube.wisc.edu/data/exp/ARA/"+year+"/filtered/L0/ARA04/"+date+"/run"+run+"/event"+run+".root")
+        if(test.IsOpen()):
+            print('made it')
+        else:
+            return -1
+
+
+        calibrator = ROOT.AraEventCalibrator.Instance()
+        eventTree = test.Get("eventTree")
 
         rawEvent = ROOT.RawAtriStationEvent()
-        eventTree.SetBranchAddress("event",rawEvent)
+        eventTree.SetBranchAddress("event",ROOT.AddressOf(rawEvent))
         totalEvents = eventTree.GetEntries()
         print('total events:', totalEvents)
+
         #length = 1792
         print(int(channel) not in [0,1,8,9,16,17,24,25])
         print(kTime)
         print(kVolt)
+
+
         if((int(channel) not in [0,1,8,9,16,17,24,25]) and (kTime==1 and kVolt==1)):
             print('changing length')
             flength=int(length/2)
         else:
             flength=length
+
         all_volts = np.zeros([totalEvents,flength])
         all_t=np.zeros([totalEvents,flength])
         all_blocks=np.zeros([totalEvents])+701
-        for i in range(0,totalEvents):#totalEvents):
 
-            test2 = eventTree.GetEntry(i)
+        for i in range(0,totalEvents):#totalEvents):
+            eventTree.GetEntry(i)
+
             if(rawEvent.isCalpulserEvent()==0 and kCalib==1): #if not a cal pulser and also do want to calibrate
                 continue
             #if(rawEvent.isCalpulserEvent()==1):
@@ -390,13 +403,22 @@ def LoadDataFromWeb(station,run,date,year,channel,length,kCalib,kPed,kTime,kVolt
             usefulEvent = ROOT.UsefulAtriStationEvent(rawEvent,ROOT.AraCalType.kNoCalib)
             gr1 = usefulEvent.getGraphFromElecChan(channel)
 
+
             t_buff = gr1.GetX()
             v_buff = gr1.GetY()
             n = gr1.GetN()
             t_buff.SetSize(n)
             v_buff.SetSize(n)
-            v = np.array(v_buff,copy=True)
-            t = np.array(t_buff,copy=True)
+            v = []
+            t = []
+            for ii in t_buff:
+                t.append(ii)
+            t=np.array(t)
+
+            for ii in v_buff:
+                v.append(ii)
+            v=np.array(v)
+            # print(colored('Got Here', 'red'))
 
             block_number = rawEvent.blockVec[0].getBlock()
 
@@ -430,7 +452,7 @@ def LoadDataFromWeb(station,run,date,year,channel,length,kCalib,kPed,kTime,kVolt
                 #print('here!')
                 #print(length)
                 #print(flength)
-                t=t[:length/2]
+                t=t[:int(length/2)]
                 v=v[:length]
                 #if(flength<length):
                 v=v[1::2]

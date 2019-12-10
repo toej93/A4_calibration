@@ -22,6 +22,8 @@ import matplotlib
 #from sympy import *
 from scipy.optimize import leastsq
 from AutomaticLoadData import LoadDataFromWeb
+from termcolor import colored
+
 
 
 font = {'weight' : 'bold',
@@ -110,7 +112,7 @@ def SineFunc(t,k,phi,A): #time, freq, offset, amplitude
 
 def SineFit(t,v,freq,A):
 
-    test = lambda t,k,phi: SineFunc(t,k,phi,A)
+    # test = lambda t,k,phi: SineFunc(t,k,phi,A)
     #print(test(3,5,6))
 
     params, params_covariance = optimize.curve_fit(lambda t,k,phi: SineFunc(t,k,phi,A),t,v,p0=[freq,np.pi/2.0])#,bounds=([0.216,-np.inf,200],[0.220,np.inf,np.inf]))#freq,offset,amplitude,voff
@@ -152,7 +154,7 @@ def histogram(vals,string):
         ax.set_xlabel(string)
         ax.set_ylabel('Counts')
         counter = counter +1
-    plt.show()
+    # plt.show()
 
 def SinePlotter(t,v,params,sample,col):
     plt.figure(10,facecolor='w')
@@ -164,7 +166,7 @@ def SinePlotter(t,v,params,sample,col):
     plt.plot(t_up,SineFunc(t_up,params[sample,0],params[sample,1],params[sample,2]),color=col,lw=1.9)
     plt.xlabel('Time (ns)')
     plt.ylabel('ADC Counts')
-    #plt.show()
+    # plt.show()
 
 def Cubic(a,p0,p1,p2,p3):
     return(p0*a**3+p1*a**2+p2*a+p3)
@@ -208,7 +210,7 @@ def plot_voltage(t,adc,p_pos,p_neg,block_num,freq,A):
     t_up = np.linspace(0,280.0,2000)
     plt.plot(t_up,SineFunc(t_up,params[0],params[1],params[2]),color='maroon')
     #print(params[0],params[1],params[2])
-    plt.show()
+    # plt.show()
 
 def plot_cubic(this_ADC,this_volt,mean_ADC,mean_volt,p_pos,p_neg,i,meanval):
     colors =["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
@@ -258,7 +260,7 @@ def plot_cubic(this_ADC,this_volt,mean_ADC,mean_volt,p_pos,p_neg,i,meanval):
     #plt.plot(xn,np.multiply(p_neg[i,0],xn**3)+np.multiply(p_neg[i,1],xn**2)+np.multiply(p_neg[i,2],xn)+p_neg[i,3],color=colors[1],lw=2.0)
     plt.xlabel('ADC Counts')
     plt.ylabel('Voltage (mV)')
-    plt.show()
+    # plt.show()
 
 
 def BlockCorrector(block_nums):
@@ -312,8 +314,8 @@ def CorrectVoltage(station,files, channel,freq):
     #plt.figure(0)
     total_samples = 896
 
-    all_times, ADC,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,1,0,1)
-    times, ADC_raw,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,0,0,1)
+    all_times, ADC,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,1,1,1)
+    times, ADC_raw,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,0,1,1)
 
     total_events = len(all_times[:,0])
     print('number of events:',total_events)
@@ -327,7 +329,7 @@ def CorrectVoltage(station,files, channel,freq):
     odd_params=np.zeros([total_events,3])
     bad_params=np.zeros([total_events,3])
     plt.figure(0)
-    plt.plot(all_times[0,1::2],ADC[0,1::2])
+    plt.plot(all_times[0,:],ADC[0,:])
     plt.plot(times[0,1::2]-times[0,0],ADC_raw[0,1::2])
     plt.show()
     for i in range(0,total_events):
@@ -346,8 +348,8 @@ def CorrectVoltage(station,files, channel,freq):
         #plt.figure(0)
         #plt.plot(all_times[0],ADC[0])
         #plt.plot(times[0]-times[0,0],ADC_raw[0])
-        plt.show()
-
+        # plt.show()
+        print(ADC[i,odds])
         odd_params[i,:] = SineFit(all_times[i,odds],ADC[i,odds],freq,A)
 
         #print(odd_params[i,:])
@@ -403,6 +405,7 @@ def CorrectVoltage(station,files, channel,freq):
 
 
     for i in range(62,total_events):
+        # print("i is %i"%i)
         my_block=int(block_nums[i])
         #print(my_block)
         for j in range(0,total_samples):#896
@@ -506,7 +509,8 @@ def CorrectVoltage(station,files, channel,freq):
         #print('')
         #print(this_ADC)
         my_spacing = 5
-        for k in range(0,len(this_ADC)/my_spacing):
+        for k in range(0,int(len(this_ADC)/my_spacing)):
+            # print("k is %i"%k)
             meas_volt.append(np.mean(sort_volt[k*my_spacing:k*my_spacing+my_spacing]))
             mean_ADC.append(np.mean(sort_ADC[k*my_spacing:k*my_spacing+my_spacing]))
             var_volt.append(np.var(sort_volt[k*my_spacing:k*my_spacing+my_spacing]))
@@ -544,11 +548,20 @@ def CorrectVoltage(station,files, channel,freq):
         #plt.figure()
         #plt.scatter(mean_ADC,meas_volt)
         #plt.show()
-        #print(mean_ADC[mean_ADC<=0],meas_volt[mean_ADC<=0])
+        # print(np.count_nonzero(mean_ADC[mean_ADC>=0]))
+        # if(np.count_nonzero(mean_ADC[mean_ADC>=0])==0):
+        #     continue
         try:
-            p_pos[i,:] = np.polyfit(mean_ADC[mean_ADC>=0],meas_volt[mean_ADC>=0],degree)
-            p_neg[i,:] = np.polyfit(mean_ADC[mean_ADC<=0],meas_volt[mean_ADC<=0],degree)
+            if(np.count_nonzero(mean_ADC[mean_ADC>=0])==0 or np.count_nonzero(mean_ADC[mean_ADC<=0])==0):
+                print(colored(np.count_nonzero(mean_ADC[mean_ADC>=0]), 'red'))
+                p_pos[i,:] = p_pos[i-2,:]
+                p_neg[i,:] = p_neg[i-2,:]
+            else:
+            # print(meas_volt[mean_ADC>=0])
+                p_pos[i,:] = np.polyfit(mean_ADC[mean_ADC>=0],meas_volt[mean_ADC>=0],degree)
+                p_neg[i,:] = np.polyfit(mean_ADC[mean_ADC<=0],meas_volt[mean_ADC<=0],degree)
         except ValueError:
+            print("Failed!!!")
             p_pos[i,:] = p_pos[i-2,:]
             p_neg[i,:] = p_neg[i-2,:]
 
@@ -676,11 +689,11 @@ def CorrectVoltage(station,files, channel,freq):
     #plt.legend()
     #plt.show()
 
-    np.save('/home/kahughes/ARA/ARA'+str(station)+'_cal_files/p_pos_'+channel+'.npy',p_pos)
-    np.save('/home/kahughes/ARA/ARA'+str(station)+'_cal_files/p_neg_'+channel+'.npy',p_neg)
-    np.save('/home/kahughes/ARA/ARA'+str(station)+'_cal_files/chi2_pos_'+channel+'.npy',chi2_p)
-    np.save('/home/kahughes/ARA/ARA'+str(station)+'_cal_files/chi2_neg_'+channel+'.npy',chi2_n)
-    np.save('/home/kahughes/ARA/ARA'+str(station)+'_cal_files/zerovals_'+channel+'.npy',zero_vals)
+    np.save('/users/PCON0003/cond0068/ARA/ARA_Calibration/ARA'+str(station)+'_cal_files/p_pos_'+channel+'.npy',p_pos)
+    np.save('/users/PCON0003/cond0068/ARA/ARA_Calibration/ARA'+str(station)+'_cal_files/p_neg_'+channel+'.npy',p_neg)
+    np.save('/users/PCON0003/cond0068/ARA/ARA_Calibration/ARA'+str(station)+'_cal_files/chi2_pos_'+channel+'.npy',chi2_p)
+    np.save('/users/PCON0003/cond0068/ARA/ARA_Calibration/ARA'+str(station)+'_cal_files/chi2_neg_'+channel+'.npy',chi2_n)
+    # np.save('/users/PCON0003/cond0068/ARA/ARA_Calibration/ARA'+str(station)+'_cal_files/zerovals_'+channel+'.npy',zero_vals)
     #p_pos = np.load('p_pos_'+channel+'.npy')
     #p_neg = np.load('p_neg_'+channel+'.npy')
 
@@ -710,7 +723,7 @@ def CorrectVoltage(station,files, channel,freq):
 
 
 def main():
-
+    #All the channels here are under the electric chain mapping
     channel = str(sys.argv[1])#'0'
     station = str(sys.argv[2])
     freqs = [0.218,0.353,0.521,0.702]
@@ -736,14 +749,15 @@ def main():
             rootfile='1411'
             rootfiles = ['1411','1412','1413','1414']
     if(station=='4'):
-        if(int(channel) in N1 and int(channel) not in N_special):
-            rootfile='2829'
-            rootfiles = ['2829', '2830','2831','2832']
-        if(int(channel) in N2 and int(channel) not in N_special):
-            rootfile='2840'
-            rootfiles = ['2840','2841','2842','2843']
-        if(int(channel)in N_special):
-            rootfiles = ['2855','2856']
+        # if(int(channel) in N1 and int(channel) not in N_special):
+        #     rootfile='2829'
+        #     rootfiles = ['2829', '2830','2831','2832']
+        # if(int(channel) in N2 and int(channel) not in N_special):
+        #     rootfile='2840'
+        #     rootfiles = ['2840','2841','2842','2843']
+        # if(int(channel)in N_special):
+        #     rootfiles = ['2855','2856']
+        rootfiles = ['2827']
 
 
     for a in range(0,1):

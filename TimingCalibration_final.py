@@ -136,7 +136,7 @@ def HistPlotter2D(sample,jitter):
     plt.title('Odd Samples')
 
 
-    plt.show()
+    # plt.show()
     return()
 
 def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o):
@@ -257,7 +257,7 @@ def histogram(vals,string):
         ax.set_xlabel(string)
         ax.set_ylabel('Counts')
         counter = counter +1
-    plt.show()
+    # plt.show()
 
 def SinePlotter(t,v,params,sample):
     plt.figure(10)
@@ -266,7 +266,7 @@ def SinePlotter(t,v,params,sample):
     #print(v[sample,:])
     t_up = np.linspace(t[0],t[-1],100)
     plt.plot(t_up,SineFunc(t_up,params[sample,0],params[sample,1],params[sample,2]))
-    plt.show()
+    # plt.show()
 
 def SlopeFinder(t,v,sample):
     if sample==0:
@@ -280,9 +280,9 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
     wf_len = 896
 
     #load in data
-    all_times, volt,blocks = LoadDataFromWeb(station,rootfile,"0529","2018",int(channel),wf_len,0,1,0,0,1)
+    all_times, volt,blocks = LoadDataFromWeb(station,rootfile,"0118","2018",int(channel),wf_len,0,1,0,0,1)
     time = all_times[0]-all_times[0][0]
-    print('number of events is', np.shape(volt))
+    print('number of events is', np.shape(volt)[0])
 
     #define all variables
     num_blocks=len(volt[:,0])
@@ -418,8 +418,7 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
     return(t_cal)
 
 def main():
-
-
+    #All the channels here are under the electric chain mapping
     #rootfile='1402'
     channel = str(sys.argv[1])#'0'
     station = str(sys.argv[2])
@@ -430,6 +429,7 @@ def main():
     #channels in second file
     N2 = [1,2,9,10,17,18,25,26]
     N_special = [9,16,24,25]
+    print("Channel is: %i"%int(channel))
     if(station=='5'):
         if(int(channel) in N1):
             rootfile='1402'
@@ -438,16 +438,17 @@ def main():
             rootfile='1411'
             rootfiles = ['1411','1412','1413','1414']
     if(station=='4'):
-        if(int(channel) in N1 and int(channel) not in N_special):
-            rootfile='2829'
-            rootfiles = ['2829', '2830','2831','2832']
-        if(int(channel) in N2 and int(channel) not in N_special):
-            rootfile='2840'
-            rootfiles = ['2840','2841','2842','2843']
-        if(int(channel)in N_special):
-            rootfiles = ['2855','2856']
-    #rootfiles = ['1402']
-    rootfiles = ['1404']
+        rootfiles = ['2827']
+    #     if(int(channel) in N1 and int(channel) not in N_special):
+    #         rootfile='2829'
+    #         rootfiles = ['2829', '2830','2831','2832']
+    #     if(int(channel) in N2 and int(channel) not in N_special):
+    #         rootfile='2840'
+    #         rootfiles = ['2840','2841','2842','2843']
+    #     if(int(channel)in N_special):
+    #         rootfiles = ['2855','2856']
+    # #rootfiles = ['1402']
+
 
     freqs = [0.218,0.353,0.521,0.702]
 
