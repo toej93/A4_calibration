@@ -314,8 +314,8 @@ def CorrectVoltage(station,files, channel,freq):
     #plt.figure(0)
     total_samples = 896
 
-    all_times, ADC,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,1,0,1)
-    times, ADC_raw,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,0,0,1)
+    all_times, ADC,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,1,1,1)
+    times, ADC_raw,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,0,1,1)
 
     total_events = len(all_times[:,0])
     print('number of events:',total_events)
@@ -477,9 +477,6 @@ def CorrectVoltage(station,files, channel,freq):
             if (np.abs(this_ADC[j]<100) and np.abs(this_volt[j]<100)):
                 lin_ADC.append(this_ADC[j])
                 lin_volt.append(this_volt[j])
-
-        print(colored(lin_ADC, 'red'))
-
         myslope,intercept,r,p,stderr = stats.linregress(np.asarray(lin_ADC),np.asarray(lin_volt))
         zero_vals[i] = intercept/myslope
 
@@ -556,8 +553,7 @@ def CorrectVoltage(station,files, channel,freq):
         # if(np.count_nonzero(mean_ADC[mean_ADC>=0])==0):
         #     continue
         try:
-            if(np.count_nonzero(mean_ADC[mean_ADC>=0])==0 or np.count_nonzero(mean_ADC[mean_ADC<=0])==0 or
-            np.count_nonzero(meas_volt[mean_ADC>=0])==0 or np.count_nonzero(meas_volt[mean_ADC<=0])==0):
+            if(np.count_nonzero(mean_ADC[mean_ADC>=0])==0 or np.count_nonzero(mean_ADC[mean_ADC<=0])==0):
                 print(colored(np.count_nonzero(mean_ADC[mean_ADC>=0]), 'red'))
                 p_pos[i,:] = p_pos[i-2,:]
                 p_neg[i,:] = p_neg[i-2,:]

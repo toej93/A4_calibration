@@ -232,7 +232,7 @@ def Cubic(a,p):
     return(p_p)
 
 
-def Calibrator(station,time,volt,block_number,channel,length,ped_values,kPed,kTime,kVolt):
+def Calibrator(station,time,volt,block_number,channel,length,ped_values,kPed,kTime,kVolt,run):
     #MyFile = ROOT.TFile.Open('data/processed/calibration_data_full_elChan'+channel+'_run'+files+'.root')
     #block_nums0 = np.loadtxt("data/processed/block_data_elChan"+channel+"_run"+files+'.txt')
     if(int(channel) not in [0,1,2,3,8,9,10,11,16,17,18,19,24,25,26,27]):
@@ -247,7 +247,7 @@ def Calibrator(station,time,volt,block_number,channel,length,ped_values,kPed,kTi
 
     if(kTime==1):
         #print('hello! calibrating the time')
-        t_cal = np.load(cal_file+'/t_cal_'+channel+'.npy')
+        t_cal = np.load(cal_file+'/t_cal_'+run+'_'+channel+'.npy')
         t_cal = fixlength(t_cal,length+64)
         time,volt = SameLengthWaveforms(time,volt,length+64)
         #plt.figure()
@@ -446,7 +446,7 @@ def LoadDataFromWeb(station,run,date,year,channel,length,kCalib,kPed,kTime,kVolt
             #plt.figure()
             #plt.plot(t,v)
             #plt.show()
-            t,v,block_number = Calibrator(station,t,v,block_number,str(channel),length,ped_values,kPed,kTime,kVolt)
+            t,v,block_number = Calibrator(station,t,v,block_number,str(channel),length,ped_values,kPed,kTime,kVolt,run)
 
             if(int(channel) not in [0,1,8,9,16,17,24,25] and flength<length):
                 #print('here!')
