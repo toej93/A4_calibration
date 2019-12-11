@@ -21,6 +21,9 @@ from AutomaticLoadData import LoadDataFromWeb
 
 
 def reject_outliers(data, m=2):
+    """
+    reject data points that are outside 2 standard deviations
+    """
     return data[abs(data - np.mean(data)) < m * np.std(data)]
 
 def update_tcal(tcal,wrap,total_samples):
@@ -48,14 +51,18 @@ def average_tcals(directory,channel,files):
     np.save('calibrated_times/ch_'+channel+'.npy',new_tcal)
 
 def invertedFit(params,tval,vval):
+    """
+    Inverts the fit (from given parameters), and returns the times used for
+    the fit.
+    """
     k = params[0]
-    phi = params[1]
-    A = params[2]
-    T = 1/(k)
+    phi = params[1] #phase
+    A = params[2] #amplitude
+    T = 1/(k) #period
     #print(T,v_off,phi,k,A)
 
 
-    sine = (lambda t: A*np.sin(2*np.pi*k*t-phi))
+    sine = (lambda t: A*np.sin(2*np.pi*k*t-phi)) #define sin as a function of time.
 
     t_list = np.linspace(tval-T/2,tval+T/2,100)
     sine_vals = sine(t_list)
@@ -72,40 +79,33 @@ def invertedFit(params,tval,vval):
         t_max=t_min
         t_min=minval
 
-    #while(t_min>tval):
-    #    t_min=tval-0.05
-    #while(t_max<tval):
-    #    #   print('hello!')
-    #    t_max=tval+0.025
-    #    #   print(t_max)
-
     try:
         t_close = inversefunc(sine,y_values=vval,domain=[t_min,t_max])
     except ValueError:
         print(t_max,t_min,vval,tval)
         print(params)
 
-        #plt.figure(1)
-        #plt.plot(np.linspace(0,40,150),sine(np.linspace(0,40,150)))
-        #plt.show()
-
-    #jitter= t_close-tval
-    #if(jitter>
-
     return(t_close-tval)#used to be t_close-tval
 
-def sort_vals(t,v):
+def sort_vals(t,v):#Sort values in increasing order
     args = t.argsort()
     t=t[args]
     v=v[args]
     return(t,v)
 
 def SineFunc(t,k,phi,A): #time, freq, offset, amplitude
+    """
+    returns the value of a sine function of the form: Asin(2pi*kt-phi)
+    """
     return A*np.sin(2*np.pi*k*t-phi)
 
 def SineFit(t,v,freq):
+    """
+    Given times, voltages and frequencies, this function returns the parameters
+    used to fit a sine function
+    """
     params, params_covariance = optimize.curve_fit(SineFunc,t,v,p0=[freq,np.pi/2.0,350])#,bounds=([-np.inf,-np.inf,200],[np.inf,np.inf,np.inf]))#freq,offset,amplitude,voff
-    if(params[2]<0):
+    if(params[2]<0):#wrap values if they're negative
         params[2]=np.abs(params[2])
         params[1]=params[1]+np.pi
     params[1]=params[1]%(np.pi*2)
@@ -114,6 +114,10 @@ def SineFit(t,v,freq):
     return(params)
 
 def HistPlotter2D(sample,jitter):
+    """
+    Returns a 2D histogram with sample number on the x-axis
+    and jitter offset on the y-axis
+    """
     sample_even=[]
     jitter_even = []
     sample_odd=[]
@@ -139,50 +143,38 @@ def HistPlotter2D(sample,jitter):
     # plt.show()
     return()
 
-def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o):
-    print(len(v[0,:]))
-    #time_1b = np.linspace(0.0,19.375,32)
-    #time_1b = t[odds[:32]]
-    #time_1b_all = np.linspace(0.0,19.6875,64)
-    #time_1b_all = t[:64]
+def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o,chan):
+    """
+    Odd and even blocks run through different delay lines. This function
+    calculates the shift between the two delay lines and applies the offset.
+    The shift is calculated by fitting sine functions to odd and even blocks
+    and finding a factor between the phases.
 
-    #print(time_1b)
-    e_freq = []
-    o_freq = []
-    for j in range(0,len(v[:,0])):
+    This function returns the shift-corrected times.
+    """
+    print(len(v[0,:]))
+
+    e_freq = [] #even freq
+    o_freq = [] #odd freq
+    for j in range(0,len(v[:,0])):#using the first sample of each event.
+    #np.shape(v)=(numEvents,numSamples=896)
         val=0
-        for i in range(0,14):
+        for i in range(0,14):#14*64=896 samples. Each block has 64 samples.
             params = SineFit(t[odds[:32]],v[j,odds[val:val+32]],freq)
             if i%2==0:#even block
                 e_freq.append(params[0])
-            else:
-                o_freq.append(params[0])
+            else:#odd
+                o_freq.append(params[0])#append the fit result params[0]=frequency
             val = val+32
-
-    #Scale even and odd blocks based on frequencies
-    #o_freq = reject_outliers(np.asarray(o_freq))
-    #e_freq = reject_outliers(np.asarray(e_freq))
-
-    #histogram([o_freq,e_freq],'Frequency (GHz)')
-
-    #even_time = time_1b_all*np.mean(e_freq)/freq
-    #odd_time = time_1b_all*np.mean(o_freq)/freq
-    #eo_time = np.concatenate((even_time,odd_time+even_time[-1]))
-    #oe_time = np.concatenate((odd_time,even_time+odd_time[-1]))
-    #Fit Again and find offset
-    #print(eo_time)
-    #print(oe_time)
-
-    t_scaled_e1 = t[:64]*np.mean(e_freq)/freq
-    t_scaled_o = t[64:128]*np.mean(o_freq)/freq
-    t_scaled_e2 = t[128:192]*np.mean(e_freq)/freq
+    #correction factor for the sampling speed (mean_fittedfreq/real_freq)
+    t_scaled_e1 = t[:64]*np.mean(e_freq)/freq #even
+    t_scaled_o = t[64:128]*np.mean(o_freq)/freq #odd
+    t_scaled_e2 = t[128:192]*np.mean(e_freq)/freq #even
 
     e2o_diff = []
     o2e_diff = []
-    #plt.figure(0)
-    #plt.plot(even_time[odds[:32]],v[0,odds[0:32]])
-    #plt.show()
 
+    #Now, let's repeat the same process but with the scaled timings.
     for j in range(0,len(v[:,0])):
         val=0
         for i in range(0,13):
@@ -215,8 +207,8 @@ def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o):
                 o2e_diff.append(((diff))/(2*np.pi*freq))
             val = val+32
 
-    #o2e_diff = reject_outliers(np.asarray(o2e_diff))
-    #histogram([e2o_diff,o2e_diff],'Wrap Around Time (ns)')
+    o2e_diff = reject_outliers(np.asarray(o2e_diff))
+    histogram([e2o_diff,o2e_diff],'Wrap Around Time (ns)',chan)
     #Scale time so that offset is taken into account
     e2o_mean = np.abs(np.mean(e2o_diff)+old_mean_e2o)
     o2e_mean = np.abs(np.mean(o2e_diff)+old_mean_o2e)
@@ -244,7 +236,7 @@ def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o):
     return(t_updated,o2e_mean,e2o_mean)
 
     #print(t)
-def histogram(vals,string):
+def histogram(vals,string,chan):
     fig, axs = plt.subplots(2,1,facecolor='w')
     counter=0
     for ax in axs.reshape(-1):
@@ -256,8 +248,10 @@ def histogram(vals,string):
         #ax.set_ylim(0,300)
         ax.set_xlabel(string)
         ax.set_ylabel('Counts')
+        ax.set_title('Wrap around time, ch %i'%int(chan))
         counter = counter +1
-    # plt.show()
+    plt.tight_layout()
+    plt.savefig("./debugPlots/offset_hist_ch%i.png"%int(chan), dpi=200)
 
 def SinePlotter(t,v,params,sample):
     plt.figure(10)
@@ -327,7 +321,7 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
 
         #First fix offsets between blocks, as that can be larger than the channel to channel fixes.
         if l==0:
-            t_cal_full,odd_mean,even_mean=AddOffsets(t_cal_full,volt,freq,odds,odd_mean,even_mean)
+            t_cal_full,odd_mean,even_mean=AddOffsets(t_cal_full,volt,freq,odds,odd_mean,even_mean, channel)
         #Fit each waveform to a sine wave
 
         #plt.figure(0)
@@ -408,7 +402,7 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
             np.save('ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'first.npy',np.asarray(sample_array))
             np.save('ARA'+str(station)+'_cal_files/jitter_'+rootfile+'_'+channel+'first.npy',np.asarray(jitter_array))
 
-        HistPlotter2D(sample_array,jitter_array)
+        # HistPlotter2D(sample_array,jitter_array)
     print('final t_cal is', t_cal_full)
     np.save('ARA'+str(station)+'_cal_files/t_cal_'+rootfile+'_'+channel+'.npy',t_cal_full)
     np.save('ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'final.npy',np.asarray(sample_array))
