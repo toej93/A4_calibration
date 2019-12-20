@@ -318,12 +318,13 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
 
     odd_mean = 0.0
     even_mean = 0.0
-    for l in range(0,1): #Perform the fit 5 times, so it converges to the solution
+    for l in range(0,5): #Perform the fit 5 times, so it converges to the solution
         print('loop number ', l)
 
         #First fix offsets between blocks, as that can be larger than the channel to channel fixes.
         if l==0:
-            t_cal_full,odd_mean,even_mean=AddOffsets(t_cal_full,volt,freq,odds,odd_mean,even_mean, channel)
+            print("l=1")
+            #t_cal_full,odd_mean,even_mean=AddOffsets(t_cal_full,volt,freq,odds,odd_mean,even_mean, channel)
         #Fit each waveform to a sine wave
 
         #plt.figure(0)
