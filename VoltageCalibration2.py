@@ -758,10 +758,12 @@ def main():
         #     rootfiles = ['2840','2841','2842','2843']
         # if(int(channel)in N_special):
         #     rootfiles = ['2855','2856']
-        rootfiles = ['2827']
+        if(int(channel)==1 or int(channel)== 2):
+            rootfiles = ['2840','2841','2842','2843']
+        if(int(channel)==0 or int(channel)== 3):
+            rootfiles = ['2829', '2830','2831','2832']
 
-
-    for a in range(0,1):
+    for a in range(0,4):
         CorrectVoltage(station,rootfiles[a],channel,freqs[a])
 
 

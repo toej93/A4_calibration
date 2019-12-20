@@ -193,11 +193,6 @@ def plot_voltage(t,adc,p_pos,p_neg,block_num,freq,A):
             v[k]=Cubic(adc[k],p_neg[start_block*64+k%64,0],p_neg[start_block*64+k%64,1],p_neg[start_block*64+k%64,2],p_neg[start_block*64+k%64,3])
 
 
-
-    #vp =Cubic(adc[adc>0],p_pos[piece,0],p_pos[piece,1],p_pos[piece,2],p_pos[piece,3])
-    #vn =Cubic(adc[adc<0],p_neg[piece,0],p_neg[piece,1],p_neg[piece,2],p_neg[piece,3])
-    #v = np.extend(vp,vn)
-    #print(v)
     params = SineFit(t,v,freq,A)
 
     plt.figure(0,facecolor='w')
@@ -219,16 +214,6 @@ def plot_cubic(this_ADC,this_volt,mean_ADC,mean_volt,p_pos,p_neg,i,meanval):
 
 
     mx = symbols('mx')
-    #x_int = solve(p_pos[i,deg-4]*mx**4+p_pos[i,deg-3]*mx**3+p_pos[i,deg-2]*mx**2+p_pos[i,deg-1]*mx+p_pos[i,deg]-p_neg[i,deg-4]*mx**4-p_neg[i,deg-3]*mx**3-p_neg[i,deg-2]*mx**2-p_neg[i,deg-1]*mx-p_neg[i,deg],mx)
-    #x_int = solve(p_pos[i,deg-3]*mx**3+p_pos[i,deg-2]*mx**2+p_pos[i,deg-1]*mx+p_pos[i,deg]-p_neg[i,deg-3]*mx**3-p_neg[i,deg-2]*mx**2-p_neg[i,deg-1]*mx-p_neg[i,deg],mx)
-
-    #if(np.abs(x_int)>10000.0):
-
-
-    # print(p_pos)
-    # print(p_neg)
-    #print(x_int)
-
 
     print('meanval is ', meanval)
     x = np.sort(this_ADC[this_ADC>=-meanval])
@@ -285,35 +270,17 @@ def MeanEachBlock(t,v):
 
 def CorrectVoltage(station,files, channel,freq):
 
-
-
-    #mx = symbols('mx')
-    #x_int = solve(mx**2+4-3*mx**2+6,mx)
-    #print('x intercept is',x_int)
-
-
-
-    #ADC = np.zeros([num_blocks,total_samples])
-    #time = np.zeros(total_samples)
-
-    #load calibrated time and volts:
-    #t_cal = np.load('cal_files7/t_cal_'+files+'_'+channel+'.npy')
-
     ADC_list = [[] for i in range(32768)]#each entry = block_number*64 +sample%64
     volts_list = [[] for i in range(32768)]
     colors =["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
 
-
-
     print('Loading RootFiles')
     avg_ADC = []
 
-    #MyFile = ROOT.TFile.Open('data/processed/calibration_data_fulltest_elChan'+channel+'_run'+files+'.root')
-    #block_nums = np.loadtxt("data/processed/block_data_elChan"+channel+"_run"+files+'.txt')
-    A = 445.0
-    #plt.figure(0)
-    total_samples = 896
+    A = 445.0 #This is never used.
 
+    total_samples = 896
+    #We now load the root files and extract variables of interest.
     all_times, ADC,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,1,0,1)
     times, ADC_raw,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,0,0,1)
 
@@ -321,42 +288,24 @@ def CorrectVoltage(station,files, channel,freq):
     print('number of events:',total_events)
 
     total_samples = len(all_times[0,:])
-    odds = np.linspace(1,total_samples-1,total_samples/2,dtype=int)
-    evens = np.linspace(0,total_samples-2,total_samples/2,dtype=int)
+    odds = np.linspace(1,total_samples-1,total_samples/2,dtype=int) #Define array for odd samples
+    evens = np.linspace(0,total_samples-2,total_samples/2,dtype=int) #Define array for even samples
 
-
-    #pedestals =np.load('best_pedestals/ch_'+channel+'_ped.npy')
-    odd_params=np.zeros([total_events,3])
+    odd_params=np.zeros([total_events,3]) #Put zeroes in the arrays
     bad_params=np.zeros([total_events,3])
     plt.figure(0)
     # print(times[0,1]-times[0,0])
     plt.plot(all_times[0,:],ADC[0,:])
     plt.plot(times[0,1::2]-times[0,0],ADC_raw[0,1::2])
     plt.show()
-    for i in range(0,total_events):
+    for i in range(0,total_events):#Loop over all waveforms
         if(i%100==0):
             print(i)
-        #time[evens],ADC[i,evens]=FileReader(MyFile,'gr_E_'+str(i),total_samples/2,block_nums[i])
-        #time[odds],ADC[i,odds]=FileReader(MyFile,'gr_O_'+str(i),total_samples/2,block_nums[i])
 
-        #ADC[i,:]=PedestalFix(ADC[i,:],channel,block_nums[i],pedestals)
-
-        #ADC[i,:] = MeanEachBlock(t_cal,ADC[i,:])
-
-        #ADC[i,:] = ADC[i,:]-np.mean(ADC[i,:])
-        #print(i,len(all_times[i,odds]),len(ADC[i,odds]),len(odd_params[i,:]))
-
-        #plt.figure(0)
-        #plt.plot(all_times[0],ADC[0])
-        #plt.plot(times[0]-times[0,0],ADC_raw[0])
-        # plt.show()
-        # print(ADC[i,odds])
         odd_params[i,:] = SineFit(all_times[i,odds],ADC[i,odds],freq,A)
-
         #print(odd_params[i,:])
         times[i,odds]=times[i,odds]-times[i,0]
         #bad_params[i,:] = SineFit(times[i,odds],ADC[i,odds],freq,A)
-
 
     t_cal = all_times[0]
     #block_nums = BlockCorrector(block_nums)#FROM THIS POINT ON, Block_nums has CORRECT first block!
@@ -375,7 +324,6 @@ def CorrectVoltage(station,files, channel,freq):
     #SinePlotter(times[5,1::2],ADC_raw[:,1::2],bad_params,5,colors[0])
     #plt.show()
     #SinePlotter(all_times[5,1::2],ADC[:,1::2],odd_params,5,colors[1])
-
     #plt.show()
     """
     spacing_e = t_cal[evens[1:]]-t_cal[evens[:-1]]
@@ -406,9 +354,7 @@ def CorrectVoltage(station,files, channel,freq):
 
 
     for i in range(62,total_events):
-        # print("i is %i"%i)
         my_block=int(block_nums[i])
-        #print(my_block)
         for j in range(0,total_samples):#896
             if(j%64==0 and j>0):
                 #print(j,my_block)
@@ -426,13 +372,6 @@ def CorrectVoltage(station,files, channel,freq):
                 volts_list[(my_block*64+j%64)].append(volt_val)
                 plot_block.append(my_block*64+j%64)
                 plot_adc.append(ADC[i,j])
-
-    #np.save('ADClist.npy',ADC_list)
-    #np.save('voltslist.npy',volts_list)
-
-
-    #ADC_list= np.load('ADClist.npy')
-    #volts_list=np.load('voltslist.npy')
 
     tot = 32768
     counts = 0
@@ -478,7 +417,7 @@ def CorrectVoltage(station,files, channel,freq):
                 lin_ADC.append(this_ADC[j])
                 lin_volt.append(this_volt[j])
 
-        print(colored(lin_ADC, 'red'))
+        # print(colored(lin_ADC, 'red'))
 
         myslope,intercept,r,p,stderr = stats.linregress(np.asarray(lin_ADC),np.asarray(lin_volt))
         zero_vals[i] = intercept/myslope
@@ -746,6 +685,7 @@ def main():
     N1 = [0,3,8,11,16,19,24,27]
     N2 = [1,2,9,10,17,18,25,26]
     N_special = [9,16,24,25]
+    rootfiles=[]
     if(station=='5'):
         if(int(channel) in N1):
             rootfile='1402'
@@ -754,18 +694,13 @@ def main():
             rootfile='1411'
             rootfiles = ['1411','1412','1413','1414']
     if(station=='4'):
-        # if(int(channel) in N1 and int(channel) not in N_special):
-        #     rootfile='2829'
-        #     rootfiles = ['2829', '2830','2831','2832']
-        # if(int(channel) in N2 and int(channel) not in N_special):
-        #     rootfile='2840'
-        #     rootfiles = ['2840','2841','2842','2843']
-        # if(int(channel)in N_special):
-        #     rootfiles = ['2855','2856']
-        rootfiles = ['2827']
+        if(int(channel)==1 or int(channel)== 2):
+            rootfiles = ['2840','2841','2842','2843']
+        if(int(channel)==0 or int(channel)== 3):
+            rootfiles = ['2829', '2830','2831','2832']
 
 
-    for a in range(0,1):
+    for a in range(0,4):
         CorrectVoltage(station,rootfiles[a],channel,freqs[a])
 
 

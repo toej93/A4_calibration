@@ -357,8 +357,8 @@ def LoadDataFromWeb(station,run,date,year,channel,length,kCalib,kPed,kTime,kVolt
         #     eventTree = test.Get("eventTree")
         # except ReferenceError:
         try:
-            print("/users/PCON0003/cond0068/ARA/ARA_Calibration/Data/event00"+str(run)+".root")
-            test = ROOT.TFile.Open("/users/PCON0003/cond0068/ARA/ARA_Calibration/Data/event00"+str(run)+".root")
+            print("/users/PCON0003/cond0068/ARA/ARA_Calibration/Data/event"+str(run)+".root")
+            test = ROOT.TFile.Open("/users/PCON0003/cond0068/ARA/ARA_Calibration/Data/event"+str(run)+".root")
         except ReferenceError:
             print("http://icecube:skua@convey.icecube.wisc.edu/data/exp/ARA/"+year+"/filtered/L0/ARA04/"+date+"/run"+run+"/event"+run+".root")
             test = ROOT.TWebFile.Open("http://icecube:skua@convey.icecube.wisc.edu/data/exp/ARA/"+year+"/filtered/L0/ARA04/"+date+"/run"+run+"/event"+run+".root")

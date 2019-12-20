@@ -18,6 +18,7 @@ from math import sin
 from array import array
 from pynverse import inversefunc
 from AutomaticLoadData import LoadDataFromWeb
+from termcolor import colored
 
 
 def reject_outliers(data, m=2):
@@ -208,6 +209,7 @@ def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o,chan):
             val = val+32
 
     o2e_diff = reject_outliers(np.asarray(o2e_diff))
+    e2o_diff = reject_outliers(np.asarray(e2o_diff))
     histogram([e2o_diff,o2e_diff],'Wrap Around Time (ns)',chan)
     #Scale time so that offset is taken into account
     e2o_mean = np.abs(np.mean(e2o_diff)+old_mean_e2o)
@@ -216,7 +218,7 @@ def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o,chan):
         e2o_mean=0.31
     if(o2e_mean>1.0):
         o2e_mean=0.31
-    print('the offsets are:', e2o_mean, o2e_mean)
+    print('the offsets are: %0.3f, %0.3f'%(e2o_mean, o2e_mean))
 
     #histogram([e2o_diff,o2e_diff],'time offset')
     t_updated = np.zeros(896)
@@ -241,14 +243,14 @@ def histogram(vals,string,chan):
     counter=0
     for ax in axs.reshape(-1):
         print('success')
-        ax.hist(vals[counter],color='navy',edgecolor='none',bins=20)
+        ax.hist(vals[counter],color='navy',edgecolor='none',bins=200)
         ax.axvline(x=np.mean(vals[counter]),color='red',ls='-',linewidth=2.0)
         #ax.text(230,250,"mean (MHz):  "+str(round(np.mean(freq_array[counter]*1000),2)))
         #ax.set_xlim(200,250)
         #ax.set_ylim(0,300)
         ax.set_xlabel(string)
         ax.set_ylabel('Counts')
-        ax.set_title('Wrap around time, ch %i'%int(chan))
+        ax.set_title('Wrap around time, ch %i, mean = %0.2f'%(int(chan),np.mean(vals[counter])))
         counter = counter +1
     plt.tight_layout()
     plt.savefig("./debugPlots/offset_hist_ch%i.png"%int(chan), dpi=200)
@@ -279,10 +281,10 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
     print('number of events is', np.shape(volt)[0])
 
     #define all variables
-    num_blocks=len(volt[:,0])
+    num_blocks=len(volt[:,0])#num blocks entries = num events
 
-    best_params = np.zeros([num_blocks,4])
-    odds = np.linspace(1,wf_len-1,wf_len/2,dtype=int)
+    best_params = np.zeros([num_blocks,4]) #creates a num_blocksx4 array
+    odds = np.linspace(1,wf_len-1,wf_len/2,dtype=int) #a list containing only odd numbers
     evens = np.linspace(0,wf_len-2,wf_len/2,dtype=int)
 
     odd_params=np.zeros([num_blocks,3])
@@ -304,7 +306,7 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
     odd_diffs = []
     line_diffs = []
 
-    spacing = 0.625
+    spacing = 0.625#This is the spacing, in ns, between odd/even samples
 
     if(t_cal[5]==0.0):
         print('clearing out old t_cal')
@@ -314,9 +316,9 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
     t_cal_full = time
     #print('t_cal before is', t_cal_full)
 
-    odd_mean= 0.0
-    even_mean= 0.0
-    for l in range(0,5):
+    odd_mean = 0.0
+    even_mean = 0.0
+    for l in range(0,1): #Perform the fit 5 times, so it converges to the solution
         print('loop number ', l)
 
         #First fix offsets between blocks, as that can be larger than the channel to channel fixes.
@@ -357,6 +359,8 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
             counter = 0
             for i in range(0,num_blocks):
                 if(np.abs(volt[i,k])<30.0 and (freq-odd_params[i,0])<0.002):# and np.abs(odd_params[i,2]>200)):
+
+
                     try:
                         invert_fit = invertedFit(odd_params[i,:],t_cal_full[k],volt[i,k])
                         jitter_array.append(invert_fit)
@@ -366,7 +370,7 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
                         print('error in finding inverse!')
 
             t_cal_full[k]=t_cal_full[k]+np.mean(jitter_array[-counter:])
-
+            # print(colored('Sample is %i'%k, 'red'))
             if(k>0):
                 new_spacing[k%128]=new_spacing[k%128]+t_cal_full[k]-t_cal_full[k-1]
 
@@ -399,17 +403,17 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
 
 
         if(l<1):
-            np.save('ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'first.npy',np.asarray(sample_array))
-            np.save('ARA'+str(station)+'_cal_files/jitter_'+rootfile+'_'+channel+'first.npy',np.asarray(jitter_array))
+            np.save('ARA'+str(station)+'_cal_files/samples_'+str(rootfile)+'_'+str(channel)+'first.npy',np.asarray(sample_array))
+            np.save('ARA'+str(station)+'_cal_files/jitter_'+str(rootfile)+'_'+str(channel)+'first.npy',np.asarray(jitter_array))
 
         # HistPlotter2D(sample_array,jitter_array)
     print('final t_cal is', t_cal_full)
-    np.save('ARA'+str(station)+'_cal_files/t_cal_'+rootfile+'_'+channel+'.npy',t_cal_full)
-    np.save('ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'final.npy',np.asarray(sample_array))
-    np.save('ARA'+str(station)+'_cal_files/jitter_'+rootfile+'_'+channel+'final.npy',np.asarray(jitter_array))
+    np.save('ARA'+str(station)+'_cal_files/t_cal_'+str(rootfile)+'_'+str(channel)+'.npy',t_cal_full)
+    np.save('ARA'+str(station)+'_cal_files/samples_'+str(rootfile)+'_'+str(channel)+'final.npy',np.asarray(sample_array))
+    np.save('ARA'+str(station)+'_cal_files/jitter_'+str(rootfile)+'_'+str(channel)+'final.npy',np.asarray(jitter_array))
     #HistPlotter2D(sample_array,jitter_array)
     #print('t_cal is', t_cal)
-    return(t_cal)
+    return(t_cal_full)
 
 def main():
     #All the channels here are under the electric chain mapping
@@ -424,15 +428,19 @@ def main():
     N2 = [1,2,9,10,17,18,25,26]
     N_special = [9,16,24,25]
     print("Channel is: %i"%int(channel))
-    if(station=='5'):
-        if(int(channel) in N1):
-            rootfile='1402'
-            rootfiles = ['1402', '1403','1404','1405']
-        if(int(channel) in N2):
-            rootfile='1411'
-            rootfiles = ['1411','1412','1413','1414']
+    # if(station=='5'):
+    #     if(int(channel) in N1):
+    #         rootfile='1402'
+    #         rootfiles = ['1402', '1403','1404','1405']
+    #     if(int(channel) in N2):
+    #         rootfile='1411'
+    #         rootfiles = ['1411','1412','1413','1414']
+    rootfiles=0
     if(station=='4'):
-        rootfiles = ['2827']
+        if(int(channel)==1 or int(channel)== 2):
+            rootfiles = ['2840','2841','2842','2843']
+        if(int(channel)==0 or int(channel)== 3):
+            rootfiles = ['2829', '2830','2831','2832']
     #     if(int(channel) in N1 and int(channel) not in N_special):
     #         rootfile='2829'
     #         rootfiles = ['2829', '2830','2831','2832']
@@ -449,7 +457,6 @@ def main():
     cal_t= np.zeros(128)
 
     for a in range(0,4):
-
         CorrectTimingSample(rootfiles[a],channel,freqs[a],cal_t,station)
 
 
