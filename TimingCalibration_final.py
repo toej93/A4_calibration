@@ -171,6 +171,9 @@ def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o,chan):
     t_scaled_e1 = t[:64]*np.mean(e_freq)/freq #even
     t_scaled_o = t[64:128]*np.mean(o_freq)/freq #odd
     t_scaled_e2 = t[128:192]*np.mean(e_freq)/freq #even
+    # t_scaled_e1 = t[:64]*1
+    # t_scaled_o = t[64:128]*1
+    # t_scaled_e2 = t[128:192]*1
 
     e2o_diff = []
     o2e_diff = []
@@ -323,8 +326,8 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
 
         #First fix offsets between blocks, as that can be larger than the channel to channel fixes.
         if l==0:
-            print("l=1")
-            #t_cal_full,odd_mean,even_mean=AddOffsets(t_cal_full,volt,freq,odds,odd_mean,even_mean, channel)
+            print("l=0")
+            t_cal_full,odd_mean,even_mean=AddOffsets(t_cal_full,volt,freq,odds,odd_mean,even_mean, channel)
         #Fit each waveform to a sine wave
 
         #plt.figure(0)
@@ -377,7 +380,7 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
 
 
         new_spacing[1:]=new_spacing[1:]/7.0
-        new_spacing[0]=new_spacing[0]/6.0
+        # new_spacing[0]=new_spacing[0]/6.0 #never used
         #print('spacing is', new_spacing)
 
         for i in range(0,896):
