@@ -476,8 +476,8 @@ def LoadDataFromWeb(station,run,date,year,channel,length,kCalib,kPed,kTime,kVolt
         all_blocks = all_blocks[all_blocks !=701]
         #print(all_blocks)
         #print(all_t)
-        # if(kTime==1):
-            # all_t,all_volts= RemoveBackwardsSamples(all_t,all_volts)
+        if(kTime==1):
+            all_t,all_volts= RemoveBackwardsSamples(all_t,all_volts)
 
         #print(t,all_volts)
         np.save("SavedCalibData/time_"+str(run)+"_"+str(channel)+str(kCalib)+str(kPed)+str(kTime)+str(kVolt)+".npy",all_t)

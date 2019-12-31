@@ -277,17 +277,17 @@ def CorrectVoltage(station,files, channel,freq):
     print('Loading RootFiles')
     avg_ADC = []
 
-    A = 445.0 #This is never used.
+    A = 445.0 #This is the amplitude for the fitting
 
     total_samples = 896
     #We now load the root files and extract variables of interest.
     all_times, ADC,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,1,0,1)
     times, ADC_raw,block_nums = LoadDataFromWeb(station,files,"0529","2018",int(channel),total_samples,0,1,0,0,1)
 
-    total_events = len(all_times[:,0])
+    total_events = len(all_times[:,0])#Number of events
     print('number of events:',total_events)
 
-    total_samples = len(all_times[0,:])
+    total_samples = len(all_times[0,:]) #Number of samples
     odds = np.linspace(1,total_samples-1,total_samples/2,dtype=int) #Define array for odd samples
     evens = np.linspace(0,total_samples-2,total_samples/2,dtype=int) #Define array for even samples
 
@@ -302,9 +302,9 @@ def CorrectVoltage(station,files, channel,freq):
         if(i%100==0):
             print(i)
 
-        odd_params[i,:] = SineFit(all_times[i,odds],ADC[i,odds],freq,A)
+        odd_params[i,:] = SineFit(all_times[i,odds],ADC[i,odds],freq,A) #Fit sine to waves
         #print(odd_params[i,:])
-        times[i,odds]=times[i,odds]-times[i,0]
+        times[i,odds]=times[i,odds]-times[i,0]#Shift to zero
         #bad_params[i,:] = SineFit(times[i,odds],ADC[i,odds],freq,A)
 
     t_cal = all_times[0]
@@ -353,21 +353,21 @@ def CorrectVoltage(station,files, channel,freq):
 
 
 
-    for i in range(62,total_events):
+    for i in range(62,total_events): #Use only events after event 62 (why?)
         my_block=int(block_nums[i])
         for j in range(0,total_samples):#896
-            if(j%64==0 and j>0):
+            if(j%64==0 and j>0): #Each block has 64 samples
                 #print(j,my_block)
                 my_block=(my_block+1)%512
 
-            volt_val = SineFunc(t_cal[j],odd_params[i,0],odd_params[i,1],A)
+            volt_val = SineFunc(t_cal[j],odd_params[i,0],odd_params[i,1],A) #Retrieve sine function of amplitude A, with parameters from fit
             #print(volt_val,ADC[i,j])
             #print(volt_val)
             #print(my_block*64+j%64)
             #slope = partial_derivative(SineFunc,var=0,point=[t_cal[j],odd_params[i,0],odd_params[i,1],v_amp])
             #slope = v_amp*2*np.pi*odd_params[i,0]*np.cos(2*np.pi*odd_params[i,0]*t_cal[j]-odd_params[i,1])
-            if( (ADC[i,j]*volt_val>0.0 or (np.abs(ADC[i,j])<100 and np.abs(volt_val)<100)) ):
-
+            if( (ADC[i,j]*volt_val>0.0 or (np.abs(ADC[i,j])<100 and np.abs(volt_val)<100)) ):#If volt_val and ADC have the same sign and magnitudes are both less than 100
+                #Now, the voltages are grouped in blocks per event
                 ADC_list[(my_block*64+j%64)].append(ADC[i,j])
                 volts_list[(my_block*64+j%64)].append(volt_val)
                 plot_block.append(my_block*64+j%64)
@@ -386,20 +386,20 @@ def CorrectVoltage(station,files, channel,freq):
 
     extra_peds = []
 
-    C1 = [0,1,8,9,16,17,24,25]
-    C2 = [3,2,11,10,19,18,27,26]
+    C1 = [0,1,8,9,16,17,24,25] #Vpols
+    C2 = [3,2,11,10,19,18,27,26] #Hpols
 
     if(float(channel) in C1):
         max_range = 32768
     else:
-        max_range = 16384
+        max_range = 16384 #Using only odd samples fro Hpols
 
 
     for i in range(0,max_range):
         if(float(channel) in C1):
             i = i
         else:
-            i=i*2+1
+            i=i*2+1 #Only odd samples
 
         if(i%1000==1):
             print(i)
@@ -421,19 +421,6 @@ def CorrectVoltage(station,files, channel,freq):
 
         myslope,intercept,r,p,stderr = stats.linregress(np.asarray(lin_ADC),np.asarray(lin_volt))
         zero_vals[i] = intercept/myslope
-
-        """
-        #zero_val = intercept/myslope
-        #this_ADC=this_ADC+zero_val
-        #print('x int is', zero_val)
-        #extra_peds.append(zero_val)
-        this_ADC=np.append(this_ADC,np.zeros(1000))
-        #this_ADC=np.append(this_ADC,np.zeros(100)+np.max(this_ADC))
-        this_volt=np.append(this_volt,np.zeros(1000)+intercept)
-        #this_volt=np.append(this_volt,np.zeros(100)+np.max(this_volt))
-        p_pos[i,:] = np.polyfit(this_ADC[this_ADC>=0],this_volt[this_ADC>=0],degree)
-        p_neg[i,:] = np.polyfit(this_ADC[this_ADC<=0],this_volt[this_ADC<=0],degree)
-        """
 
         if(channel in C2):
             p_pos[i-1,:]=p_pos[i,:]
