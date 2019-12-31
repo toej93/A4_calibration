@@ -168,12 +168,12 @@ def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o,chan):
                 o_freq.append(params[0])#append the fit result params[0]=frequency
             val = val+32
     #correction factor for the sampling speed (mean_fittedfreq/real_freq)
-    t_scaled_e1 = t[:64]*np.mean(e_freq)/freq #even
-    t_scaled_o = t[64:128]*np.mean(o_freq)/freq #odd
-    t_scaled_e2 = t[128:192]*np.mean(e_freq)/freq #even
-    # t_scaled_e1 = t[:64]*1
-    # t_scaled_o = t[64:128]*1
-    # t_scaled_e2 = t[128:192]*1
+    # t_scaled_e1 = t[:64]*np.mean(e_freq)/freq #even
+    # t_scaled_o = t[64:128]*np.mean(o_freq)/freq #odd
+    # t_scaled_e2 = t[128:192]*np.mean(e_freq)/freq #even
+    t_scaled_e1 = t[:64]*1
+    t_scaled_o = t[64:128]*1
+    t_scaled_e2 = t[128:192]*1
 
     e2o_diff = []
     o2e_diff = []
@@ -217,10 +217,11 @@ def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o,chan):
     #Scale time so that offset is taken into account
     e2o_mean = np.abs(np.mean(e2o_diff)+old_mean_e2o)
     o2e_mean = np.abs(np.mean(o2e_diff)+old_mean_o2e)
-    if(e2o_mean>1.0):
-        e2o_mean=0.31
-    if(o2e_mean>1.0):
-        o2e_mean=0.31
+    # if(e2o_mean>1.0):
+    #     e2o_mean=0.31
+    # if(o2e_mean>1.0):
+    #     o2e_mean=0.31
+    o2e_mean=e2o_mean=0.31
     print('the offsets are: %0.3f, %0.3f'%(e2o_mean, o2e_mean))
 
     #histogram([e2o_diff,o2e_diff],'time offset')
@@ -380,7 +381,7 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
 
 
         new_spacing[1:]=new_spacing[1:]/7.0
-        # new_spacing[0]=new_spacing[0]/6.0 #never used
+        new_spacing[0]=new_spacing[0]/6.0
         #print('spacing is', new_spacing)
 
         for i in range(0,896):
